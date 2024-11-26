@@ -3,6 +3,7 @@ using CairoMakie
 import Dates
 
 ## Data
+
 # Variables clim
 bbox = (left = -78.288574, bottom = 43.572432, right=-68.653564,top=48.661943)
 
