@@ -32,7 +32,7 @@ sp = taxon(taxname)
 fname = join(split(sp.name, " "), "-") # Pour sauvegarder les figures
 
 occ = occurrences(sp, envirovars[1], "occurrenceStatus" => "PRESENT", "limit" => 300, "continent" => "NORTH_AMERICA")
-while length(occ) < min(20_000, count(occ)) # Max. 10000, sinon toutes
+while length(occ) < min(8_000, count(occ)) # Max. 10000, sinon toutes
     occurrences!(occ)
 end
 
