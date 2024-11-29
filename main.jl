@@ -1,3 +1,9 @@
+taxname = "Mephitis mephitis"
+if ~isempty(ARGS)
+    taxname = join(ARGS[1:2], " ")
+end
+@info "Running for $(taxname)"
+
 using SpeciesDistributionToolkit
 using CairoMakie
 CairoMakie.activate!(; type="png", px_per_unit=2) # Haute résolution pour les figures
@@ -15,17 +21,23 @@ envirovars = [SDMLayer(provider; layer=i, resolution=5.0, bbox...) for i in each
 # Température annuelle moyenne
 heatmap(envirovars[1])
 
+# Fichier pour les figures
+fpath = joinpath(pwd(), "figures")
+if ~ispath(fpath)
+    mkpath(fpath)
+end
+
 # Occurrences
-sp = taxon("Mephitis mephitis")
+sp = taxon(taxname)
+fname = join(split(sp.name, " "), "-") # Pour sauvegarder les figures
+
 occ = occurrences(sp, envirovars[1], "occurrenceStatus" => "PRESENT", "limit" => 300, "continent" => "NORTH_AMERICA")
-while length(occ) < min(20_000, count(occ)) # Max. 10000, sinon toutes
+while length(occ) < min(5_000, count(occ)) # Max. 10000, sinon toutes
     occurrences!(occ)
 end
 
 # Spatial thinning
 presencelayer = mask(envirovars[1], occ)
-
-heatmap(presencelayer)
 
 # Pseudo-absences
 event_dist = pseudoabsencemask(DistanceToEvent, presencelayer)
@@ -38,10 +50,13 @@ absencelayer = backgroundpoints(pa_mask, 2sum(presencelayer))
 nodata!(absencelayer, false)
 nodata!(presencelayer, false)
 
-heatmap(envirovars[1], colormap=:Blues)
+fig_training = Figure()
+ax = Axis(fig_training[1,1]; aspect=DataAspect())
+heatmap(envirovars[1], colormap=[:lightgrey, :lightgrey])
 scatter!(presencelayer, color=:red, markersize=3)
-scatter!(absencelayer, color=:green, markersize=2)
+scatter!(absencelayer, color=:black, markersize=2)
 current_figure()
+save(joinpath(fpath, "$(fname)-data.png"), current_figure())
 
 ## Modèle 
 sdm = SDM(ZScore, DecisionTree, envirovars, presencelayer, absencelayer)
@@ -57,14 +72,13 @@ folds = kfold(sdm; k=10)
 reset!(sdm)
 forwardselection!(sdm, folds, [1]; verbose=true)
 
-
 ## Performance
 cv = crossvalidate(sdm, folds)
 mcc(cv.validation)
 mcc(cv.training)
 
 ## Bagging (random forest)
-ensemble = Bagging(sdm, 32)
+ensemble = Bagging(sdm, 64)
 bagfeatures!(ensemble)
 train!(ensemble)
 
@@ -117,6 +131,7 @@ lines!(ax, QC, color=:black, linewidth=1)
 Colorbar(fig_pred_qc[1, 2], hm, height=Relative(0.7))
 scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
 current_figure()
+save(joinpath(fpath, "$(fname)-pred-current.png"), current_figure())
 
 # Prédiction (climat futur)
 fig_future_qc = Figure(size=(800, 700))
@@ -127,6 +142,7 @@ lines!(ax, QC, color=:black, linewidth=1)
 Colorbar(fig_future_qc[1, 2], hm, height=Relative(0.7))
 scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
 current_figure()
+save(joinpath(fpath, "$(fname)-pred-future.png"), current_figure())
 
 # Changement d'aire de distribution
 fig_rangediff = Figure(size=(800, 700))
@@ -138,6 +154,7 @@ lines!(ax, QC, color=:black, linewidth=1)
 #Colorbar(fig_pred_qc[1, 2], hm, height=Relative(0.7))
 scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
 current_figure()
+save(joinpath(fpath, "$(fname)-range-shift.png"), current_figure())
 
 # Importance de la température (Shapley)
 shap_temp_current = explain(ensemble, qccurrent, 1; threshold=false, samples=50)
@@ -152,6 +169,7 @@ lines!(ax, QC, color=:black, linewidth=1)
 Colorbar(fig_shap_current[1, 2], hm, height=Relative(0.7))
 scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
 current_figure()
+save(joinpath(fpath, "$(fname)-temperature-effect-current.png"), current_figure())
 
 fig_shap_future = Figure(size=(800, 700))
 ax = Axis(fig_shap_future[1, 1], aspect=DataAspect(), xlabel="Longitude", ylabel="Latitude")
@@ -161,6 +179,7 @@ lines!(ax, QC, color=:black, linewidth=1)
 Colorbar(fig_shap_future[1, 2], hm, height=Relative(0.7))
 scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
 current_figure()
+save(joinpath(fpath, "$(fname)-temperature-effect-future.png"), current_figure())
 
 # Nouveauté climatique
 using Statistics
@@ -188,3 +207,4 @@ lines!(ax, QC, color=:black, linewidth=1)
 Colorbar(fig_novelty[1, 2], hm, height=Relative(0.7))
 scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
 current_figure()
+save(joinpath(fpath, "$(fname)-climate-novelty.png"), current_figure())
