@@ -32,7 +32,7 @@ sp = taxon(taxname)
 fname = join(split(sp.name, " "), "-") # Pour sauvegarder les figures
 
 occ = occurrences(sp, envirovars[1], "occurrenceStatus" => "PRESENT", "limit" => 300, "continent" => "NORTH_AMERICA")
-while length(occ) < min(5_000, count(occ)) # Max. 10000, sinon toutes
+while length(occ) < min(20_000, count(occ)) # Max. 10000, sinon toutes
     occurrences!(occ)
 end
 
@@ -202,7 +202,7 @@ end
 fig_novelty = Figure(size=(800, 700))
 ax = Axis(fig_novelty[1, 1], aspect=DataAspect(), xlabel="Longitude", ylabel="Latitude")
 heatmap!(ax, bg, colormap=[:lightgrey, :lightgrey])
-hm = heatmap!(ax, Δclim, colormap=:linear_worb_100_25_c53_n256, colorrange=(0, 6))
+hm = heatmap!(ax, Δclim, colormap=:linear_worb_100_25_c53_n256, colorrange=(0.0, floor(maximum(Δclim))))
 lines!(ax, QC, color=:black, linewidth=1)
 Colorbar(fig_novelty[1, 2], hm, height=Relative(0.7))
 scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
