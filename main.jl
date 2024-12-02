@@ -12,11 +12,11 @@ import Images
 import Downloads
 
 # Superficie pour l'entraînement du modèle
-bbox = (left=-90.0, bottom=35.0, right=-60.0, top=56.0)
+bbox = (left=-90.0, bottom=32.5, right=-60.0, top=56.0)
 
 # Données environnementales pour l'entraînement
 provider = RasterData(WorldClim2, BioClim)
-envirovars = [SDMLayer(provider; layer=i, resolution=5.0, bbox...) for i in eachindex(layers(provider))]
+envirovars = [SDMLayer(provider; layer=i, resolution=2.5, bbox...) for i in eachindex(layers(provider))]
 
 # Température annuelle moyenne
 heatmap(envirovars[1])
@@ -97,7 +97,7 @@ sp_size = Vec2f(reverse(size(sp_image) ./ 2))
 QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
 qcbbox = SpeciesDistributionToolkit.boundingbox(QC; padding=0.5)
 
-qccurrent = [SDMLayer(provider; layer=i, resolution=5.0, qcbbox...) for i in eachindex(layers(provider))]
+qccurrent = [SDMLayer(provider; layer=i, resolution=2.5, qcbbox...) for i in eachindex(layers(provider))]
 bg = copy(qccurrent[1])
 msk = mask!(copy(qccurrent[1]), QC)
 
@@ -140,7 +140,7 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         range_txt = "$(range_begin)-$(range_end)"
 
 
-        qcfuture = [SDMLayer(provider, futureclim, timespan=tsp; layer=i, resolution=5.0, qcbbox...) for i in eachindex(layers(provider))]
+        qcfuture = [SDMLayer(provider, futureclim, timespan=tsp; layer=i, resolution=2.5, qcbbox...) for i in eachindex(layers(provider))]
 
         # NE PAS CHANGER
         for i in eachindex(qcfuture)
