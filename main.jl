@@ -213,6 +213,17 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         current_figure()
         save(joinpath(fpath, "$(fname)-pred-future-$(ssp)-$(range_txt).png"), current_figure())
 
+        # Range (climat futur)
+        fig_pred_qc = Figure(size=(800, 700))
+        ax = Axis(fig_pred_qc[1, 1], aspect=DataAspect())
+        heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
+        hm = heatmap!(ax, rg_qc_future, colormap=:Oranges, colorrange=(0, 1))
+        lines!(ax, QC, color=:black, linewidth=1)
+        Colorbar(fig_pred_qc[1, 2], hm, height=Relative(0.7))
+        scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+        current_figure()
+        save(joinpath(fpath, "$(fname)-range-future-$(ssp)-$(range_txt).png"), current_figure())
+
         # Changement d'aire de distribution
         fig_rangediff = Figure(size=(800, 700))
         ax = Axis(fig_rangediff[1, 1], aspect=DataAspect())
