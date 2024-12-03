@@ -17,7 +17,7 @@ bbox = (left=-90.0, bottom=32.5, right=-60.0, top=56.0)
 
 # Données environnementales pour l'entraînement
 provider = RasterData(WorldClim2, BioClim)
-envirovars = [SDMLayer(provider; layer=i, resolution=10.0, bbox...) for i in eachindex(layers(provider))]
+envirovars = [SDMLayer(provider; layer=i, resolution=2.5, bbox...) for i in eachindex(layers(provider))]
 
 # Température annuelle moyenne
 heatmap(envirovars[1])
@@ -39,7 +39,7 @@ sp = taxon(taxname)
 fname = join(split(sp.name, " "), "-") # Pour sauvegarder les figures
 
 occ = occurrences(sp, envirovars[1], "occurrenceStatus" => "PRESENT", "limit" => 300, "continent" => "NORTH_AMERICA")
-while length(occ) < min(4_000, count(occ)) # Max. 10000, sinon toutes
+while length(occ) < min(20_000, count(occ)) # Max. 10000, sinon toutes
     occurrences!(occ)
 end
 
@@ -108,7 +108,7 @@ outofbag(ensemble) |> (x) -> 1 - accuracy(x)
 QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
 qcbbox = SpeciesDistributionToolkit.boundingbox(QC; padding=1.5)
 
-qccurrent = [SDMLayer(provider; layer=i, resolution=10.0, qcbbox...) for i in eachindex(layers(provider))]
+qccurrent = [SDMLayer(provider; layer=i, resolution=2.5, qcbbox...) for i in eachindex(layers(provider))]
 bg = copy(qccurrent[1])
 SimpleSDMLayers.save(joinpath(rpath, "$(fname)-qc.tiff"), convert(SDMLayer{UInt8}, !isnan.(bg)))
 msk = mask!(copy(qccurrent[1]), QC)
@@ -187,7 +187,7 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         range_txt = "$(range_begin)-$(range_end)"
 
 
-        qcfuture = [SDMLayer(provider, futureclim, timespan=tsp; layer=i, resolution=10.0, qcbbox...) for i in eachindex(layers(provider))]
+        qcfuture = [SDMLayer(provider, futureclim, timespan=tsp; layer=i, resolution=2.5, qcbbox...) for i in eachindex(layers(provider))]
 
         # NE PAS CHANGER
         for i in eachindex(qcfuture)
