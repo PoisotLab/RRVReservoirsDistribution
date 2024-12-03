@@ -68,7 +68,7 @@ sp_size = Vec2f(reverse(size(sp_image) ./ 2))
 # Carte avec les données
 fig_training = Figure()
 ax = Axis(fig_training[1, 1]; aspect=DataAspect())
-heatmap!(ax, envirovars[1], colormap=[:lightgrey, :lightgrey])
+heatmap!(ax, envirovars[1], colormap=[colorant"#efefef", colorant"#efefef"])
 scatter!(ax, presencelayer, color=:orange, markersize=3)
 scatter!(ax, absencelayer, color=:black, markersize=2)
 scatter!(ax, [-65.0], [37.5]; marker=sp_image, markersize=sp_size)
@@ -118,7 +118,9 @@ qccurrent = [mask!(l, msk) for l in qccurrent]
 
 # Prédictions
 pr_qc_current = predict(ensemble, qccurrent; threshold=false)
+SimpleSDMLayers.save(joinpath(rpath, "$(fname)-prediction-current.tiff"), convert(SDMLayer{Float32}, pr_qc_current))
 rg_qc_current = predict(ensemble, qccurrent, consensus=majority; threshold=true)
+SimpleSDMLayers.save(joinpath(rpath, "$(fname)-range-current.tiff"), convert(SDMLayer{Float32}, rg_qc_current))
 S = explain(ensemble, qccurrent; threshold=false, samples=50)
 minf = mosaic(x -> argmax(abs.(x)), S)
 
@@ -127,7 +129,7 @@ shaprange(v) = maximum(abs.(quantile(v, [0.05, 0.95]))) .* (-1, 1)
 # Prédiction (climat historique)
 fig_pred_qc = Figure(size=(800, 700))
 ax = Axis(fig_pred_qc[1, 1], aspect=DataAspect())
-heatmap!(ax, bg, colormap=[:lightgrey, :lightgrey])
+heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
 hm = heatmap!(ax, pr_qc_current, colormap=:Oranges, colorrange=(0, 1))
 lines!(ax, QC, color=:black, linewidth=1)
 Colorbar(fig_pred_qc[1, 2], hm, height=Relative(0.7))
@@ -135,10 +137,21 @@ scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
 current_figure()
 save(joinpath(fpath, "$(fname)-pred-current.png"), current_figure())
 
+# Range (climat historique)
+fig_pred_qc = Figure(size=(800, 700))
+ax = Axis(fig_pred_qc[1, 1], aspect=DataAspect())
+heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
+hm = heatmap!(ax, rg_qc_current, colormap=:Oranges, colorrange=(0, 1))
+lines!(ax, QC, color=:black, linewidth=1)
+Colorbar(fig_pred_qc[1, 2], hm, height=Relative(0.7))
+scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+current_figure()
+save(joinpath(fpath, "$(fname)-range-current.png"), current_figure())
+
 for (i, v) in enumerate(variables(ensemble))
     fig_S = Figure(size=(800, 700))
     ax = Axis(fig_S[1, 1], aspect=DataAspect())
-    heatmap!(ax, bg, colormap=[:lightgrey, :lightgrey])
+    heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
     hm = heatmap!(ax, S[i], colormap=:diverging_bwg_20_95_c41_n256, colorrange=shaprange(S[i]))
     lines!(ax, QC, color=:black, linewidth=1)
     Colorbar(fig_S[1, 2], hm, height=Relative(0.7))
@@ -150,17 +163,17 @@ end
 # Variable la plus importante
 fig_maxinf = Figure(size=(800, 700))
 ax = Axis(fig_maxinf[1, 1], aspect=DataAspect())
-heatmap!(ax, bg, colormap=[:lightgrey, :lightgrey])
+heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
 var_colors = cgrad(:diverging_rainbow_bgymr_45_85_c67_n256, length(variables(ensemble)), categorical=true)
-hm = heatmap!(ax, minf; colormap = var_colors, colorrange=(1, length(variables(ensemble))))
+hm = heatmap!(ax, minf; colormap=var_colors, colorrange=(1, length(variables(ensemble))))
 lines!(ax, QC, color=:black, linewidth=1)
 scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
 Legend(
     fig_maxinf[2, 1],
-    [PolyElement(; color = var_colors[i]) for i in 1:length(variables(ensemble))],
+    [PolyElement(; color=var_colors[i]) for i in 1:length(variables(ensemble))],
     "BIO" .* string.(variables(ensemble));
-    orientation = :horizontal,
-    nbanks = 1,
+    orientation=:horizontal,
+    nbanks=1,
 )
 current_figure()
 save(joinpath(fpath, "$(fname)-mostimportant-current.png"), current_figure())
@@ -185,12 +198,14 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         qcfuture = [mask!(l, msk) for l in qcfuture]
 
         pr_qc_future = predict(ensemble, qcfuture; threshold=false)
+        SimpleSDMLayers.save(joinpath(rpath, "$(fname)-prediction-$(ssp)-$(range_txt).tiff"), convert(SDMLayer{Float32}, pr_qc_future))
         rg_qc_future = predict(ensemble, qcfuture, consensus=majority; threshold=true)
+        SimpleSDMLayers.save(joinpath(rpath, "$(fname)-range-$(ssp)-$(range_txt).tiff"), convert(SDMLayer{Float32}, rg_qc_future))
 
         # Prédiction (climat futur)
         fig_future_qc = Figure(size=(800, 700))
         ax = Axis(fig_future_qc[1, 1], aspect=DataAspect())
-        heatmap!(ax, bg, colormap=[:lightgrey, :lightgrey])
+        heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
         hm = heatmap!(ax, pr_qc_future, colormap=:Oranges, colorrange=(0, 1))
         lines!(ax, QC, color=:black, linewidth=1)
         Colorbar(fig_future_qc[1, 2], hm, height=Relative(0.7))
@@ -201,8 +216,8 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         # Changement d'aire de distribution
         fig_rangediff = Figure(size=(800, 700))
         ax = Axis(fig_rangediff[1, 1], aspect=DataAspect())
-        heatmap!(ax, bg, colormap=[:lightgrey, :lightgrey])
-        heatmap!(ax, gainloss(rg_qc_current, rg_qc_future), colormap=:diverging_bky_60_10_c30_n256, colorrange=(-1, 1))
+        heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
+        heatmap!(ax, gainloss(rg_qc_current, rg_qc_future), colormap=:diverging_isoluminant_cjm_75_c23_n256, colorrange=(-1, 1))
         scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
         lines!(ax, QC, color=:black, linewidth=1)
         #Colorbar(fig_pred_qc[1, 2], hm, height=Relative(0.7))
@@ -211,17 +226,39 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         save(joinpath(fpath, "$(fname)-range-shift-$(ssp)-$(range_txt).png"), current_figure())
 
         # Importance de la température (Shapley)
-        shap_temp_future = explain(ensemble, qcfuture, 1; threshold=false, samples=50)
+        S = explain(ensemble, qcfuture; threshold=false, samples=50)
+        minf = mosaic(x -> argmax(abs.(x)), S)
 
-        fig_shap_future = Figure(size=(800, 700))
-        ax = Axis(fig_shap_future[1, 1], aspect=DataAspect())
-        heatmap!(ax, bg, colormap=[:lightgrey, :lightgrey])
-        hm = heatmap!(ax, shap_temp_future, colormap=:diverging_bwg_20_95_c41_n256, colorrange=(-0.4, 0.4))
+
+        for (i, v) in enumerate(variables(ensemble))
+            fig_S = Figure(size=(800, 700))
+            ax = Axis(fig_S[1, 1], aspect=DataAspect())
+            heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
+            hm = heatmap!(ax, S[i], colormap=:diverging_bwg_20_95_c41_n256, colorrange=shaprange(S[i]))
+            lines!(ax, QC, color=:black, linewidth=1)
+            Colorbar(fig_S[1, 2], hm, height=Relative(0.7))
+            scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+            current_figure()
+            save(joinpath(fpath, "$(fname)-BIO$(v)-effect-$(ssp)-$(range_txt).png"), current_figure())
+        end
+
+        # Variable la plus importante
+        fig_maxinf = Figure(size=(800, 700))
+        ax = Axis(fig_maxinf[1, 1], aspect=DataAspect())
+        heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
+        var_colors = cgrad(:diverging_rainbow_bgymr_45_85_c67_n256, length(variables(ensemble)), categorical=true)
+        hm = heatmap!(ax, minf; colormap=var_colors, colorrange=(1, length(variables(ensemble))))
         lines!(ax, QC, color=:black, linewidth=1)
-        Colorbar(fig_shap_future[1, 2], hm, height=Relative(0.7))
         scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+        Legend(
+            fig_maxinf[2, 1],
+            [PolyElement(; color=var_colors[i]) for i in 1:length(variables(ensemble))],
+            "BIO" .* string.(variables(ensemble));
+            orientation=:horizontal,
+            nbanks=1,
+        )
         current_figure()
-        save(joinpath(fpath, "$(fname)-temperature-effect-future-$(ssp)-$(range_txt).png"), current_figure())
+        save(joinpath(fpath, "$(fname)-mostimportant-$(ssp)-$(range_txt).png"), current_figure())
 
         # Nouveauté climatique
         using Statistics
@@ -243,7 +280,7 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         # Nouveauté climatique
         fig_novelty = Figure(size=(800, 700))
         ax = Axis(fig_novelty[1, 1], aspect=DataAspect())
-        heatmap!(ax, bg, colormap=[:lightgrey, :lightgrey])
+        heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
         hm = heatmap!(ax, Δclim, colormap=:linear_worb_100_25_c53_n256, colorrange=quantile(Δclim, [0.05, 0.95]))
         lines!(ax, QC, color=:black, linewidth=1)
         Colorbar(fig_novelty[1, 2], hm, height=Relative(0.7))
