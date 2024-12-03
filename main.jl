@@ -6,17 +6,18 @@ end
 
 using SpeciesDistributionToolkit
 using CairoMakie
-CairoMakie.activate!(; type="png", px_per_unit=2) # Haute résolution pour les figures
+CairoMakie.activate!(; type="png", px_per_unit=3) # Haute résolution pour les figures
 import Dates
 import Images
 import Downloads
+using Statistics
 
 # Superficie pour l'entraînement du modèle
 bbox = (left=-90.0, bottom=32.5, right=-60.0, top=56.0)
 
 # Données environnementales pour l'entraînement
 provider = RasterData(WorldClim2, BioClim)
-envirovars = [SDMLayer(provider; layer=i, resolution=2.5, bbox...) for i in eachindex(layers(provider))]
+envirovars = [SDMLayer(provider; layer=i, resolution=10.0, bbox...) for i in eachindex(layers(provider))]
 
 # Température annuelle moyenne
 heatmap(envirovars[1])
@@ -27,12 +28,18 @@ if ~ispath(fpath)
     mkpath(fpath)
 end
 
+# Fichier pour les raster
+rpath = joinpath(pwd(), "rasters")
+if ~ispath(rpath)
+    mkpath(rpath)
+end
+
 # Occurrences
 sp = taxon(taxname)
 fname = join(split(sp.name, " "), "-") # Pour sauvegarder les figures
 
 occ = occurrences(sp, envirovars[1], "occurrenceStatus" => "PRESENT", "limit" => 300, "continent" => "NORTH_AMERICA")
-while length(occ) < min(10_000, count(occ)) # Max. 10000, sinon toutes
+while length(occ) < min(4_000, count(occ)) # Max. 10000, sinon toutes
     occurrences!(occ)
 end
 
@@ -50,22 +57,34 @@ absencelayer = backgroundpoints(pa_mask, 2sum(presencelayer))
 nodata!(absencelayer, false)
 nodata!(presencelayer, false)
 
+# Image pour les cartes (depuis Phylopic)
+sp_uuid = Phylopic.imagesof(sp; items=1)
+Phylopic.attribution(sp_uuid)
+sp_thumbnail_url = Phylopic.thumbnail(sp_uuid)
+sp_thumbnail_tmp = Downloads.download(sp_thumbnail_url)
+sp_image = Images.load(sp_thumbnail_tmp)
+sp_size = Vec2f(reverse(size(sp_image) ./ 2))
+
+# Carte avec les données
 fig_training = Figure()
 ax = Axis(fig_training[1, 1]; aspect=DataAspect())
-heatmap(envirovars[1], colormap=[:lightgrey, :lightgrey])
-scatter!(presencelayer, color=:red, markersize=3)
-scatter!(absencelayer, color=:black, markersize=2)
+heatmap!(ax, envirovars[1], colormap=[:lightgrey, :lightgrey])
+scatter!(ax, presencelayer, color=:orange, markersize=3)
+scatter!(ax, absencelayer, color=:black, markersize=2)
+scatter!(ax, [-65.0], [37.5]; marker=sp_image, markersize=sp_size)
 current_figure()
 save(joinpath(fpath, "$(fname)-data.png"), current_figure())
+
+# On sauvegarde les raster
+bg = !isnan.(envirovars[1])
+SimpleSDMLayers.save(joinpath(rpath, "$(fname)-background.tiff"), convert(SDMLayer{UInt8}, bg))
+SimpleSDMLayers.save(joinpath(rpath, "$(fname)-presence.tiff"), convert(SDMLayer{UInt8}, presencelayer))
+SimpleSDMLayers.save(joinpath(rpath, "$(fname)-absence.tiff"), convert(SDMLayer{UInt8}, absencelayer))
 
 ## Modèle 
 sdm = SDM(ZScore, DecisionTree, envirovars, presencelayer, absencelayer)
 
 train!(sdm)
-
-heatmap(predict(sdm, envirovars; threshold=false))
-scatter!(presencelayer, markersize=2, color=:orange)
-current_figure()
 
 ## Optimisation
 folds = kfold(sdm; k=10)
@@ -78,27 +97,20 @@ mcc(cv.validation)
 mcc(cv.training)
 
 ## Bagging (random forest)
-ensemble = Bagging(sdm, 64)
+ensemble = Bagging(sdm, 32)
 bagfeatures!(ensemble)
 train!(ensemble)
 
 ## OOB error rate
 outofbag(ensemble) |> (x) -> 1 - accuracy(x)
 
-# Image pour les cartes (depuis Phylopic)
-sp_uuid = Phylopic.imagesof(sp; items=1)
-Phylopic.attribution(sp_uuid)
-sp_thumbnail_url = Phylopic.thumbnail(sp_uuid)
-sp_thumbnail_tmp = Downloads.download(sp_thumbnail_url)
-sp_image = Images.load(sp_thumbnail_tmp)
-sp_size = Vec2f(reverse(size(sp_image) ./ 2))
-
 #### Prédiction seulement pour le QC
 QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
-qcbbox = SpeciesDistributionToolkit.boundingbox(QC; padding=0.5)
+qcbbox = SpeciesDistributionToolkit.boundingbox(QC; padding=1.5)
 
-qccurrent = [SDMLayer(provider; layer=i, resolution=2.5, qcbbox...) for i in eachindex(layers(provider))]
+qccurrent = [SDMLayer(provider; layer=i, resolution=10.0, qcbbox...) for i in eachindex(layers(provider))]
 bg = copy(qccurrent[1])
+SimpleSDMLayers.save(joinpath(rpath, "$(fname)-qc.tiff"), convert(SDMLayer{UInt8}, !isnan.(bg)))
 msk = mask!(copy(qccurrent[1]), QC)
 
 # Masquage des données
@@ -107,7 +119,10 @@ qccurrent = [mask!(l, msk) for l in qccurrent]
 # Prédictions
 pr_qc_current = predict(ensemble, qccurrent; threshold=false)
 rg_qc_current = predict(ensemble, qccurrent, consensus=majority; threshold=true)
-shap_temp_current = explain(ensemble, qccurrent, 1; threshold=false, samples=50)
+S = explain(ensemble, qccurrent; threshold=false, samples=50)
+minf = mosaic(x -> argmax(abs.(x)), S)
+
+shaprange(v) = maximum(abs.(quantile(v, [0.05, 0.95]))) .* (-1, 1)
 
 # Prédiction (climat historique)
 fig_pred_qc = Figure(size=(800, 700))
@@ -120,16 +135,35 @@ scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
 current_figure()
 save(joinpath(fpath, "$(fname)-pred-current.png"), current_figure())
 
-fig_shap_current = Figure(size=(800, 700))
-ax = Axis(fig_shap_current[1, 1], aspect=DataAspect())
+for (i, v) in enumerate(variables(ensemble))
+    fig_S = Figure(size=(800, 700))
+    ax = Axis(fig_S[1, 1], aspect=DataAspect())
+    heatmap!(ax, bg, colormap=[:lightgrey, :lightgrey])
+    hm = heatmap!(ax, S[i], colormap=:diverging_bwg_20_95_c41_n256, colorrange=shaprange(S[i]))
+    lines!(ax, QC, color=:black, linewidth=1)
+    Colorbar(fig_S[1, 2], hm, height=Relative(0.7))
+    scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+    current_figure()
+    save(joinpath(fpath, "$(fname)-BIO$(v)-effect-current.png"), current_figure())
+end
+
+# Variable la plus importante
+fig_maxinf = Figure(size=(800, 700))
+ax = Axis(fig_maxinf[1, 1], aspect=DataAspect())
 heatmap!(ax, bg, colormap=[:lightgrey, :lightgrey])
-hm = heatmap!(ax, shap_temp_current, colormap=:diverging_bwr_20_95_c54_n256, colorrange=(-0.4, 0.4))
-scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+var_colors = cgrad(:diverging_rainbow_bgymr_45_85_c67_n256, length(variables(ensemble)), categorical=true)
+hm = heatmap!(ax, minf; colormap = var_colors, colorrange=(1, length(variables(ensemble))))
 lines!(ax, QC, color=:black, linewidth=1)
-Colorbar(fig_shap_current[1, 2], hm, height=Relative(0.7))
 scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+Legend(
+    fig_maxinf[2, 1],
+    [PolyElement(; color = var_colors[i]) for i in 1:length(variables(ensemble))],
+    "BIO" .* string.(variables(ensemble));
+    orientation = :horizontal,
+    nbanks = 1,
+)
 current_figure()
-save(joinpath(fpath, "$(fname)-temperature-effect-current.png"), current_figure())
+save(joinpath(fpath, "$(fname)-mostimportant-current.png"), current_figure())
 
 for ssp in [SSP126, SSP245, SSP370, SSP585]
     futureclim = Projection(ssp, CanESM5)
@@ -140,7 +174,7 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         range_txt = "$(range_begin)-$(range_end)"
 
 
-        qcfuture = [SDMLayer(provider, futureclim, timespan=tsp; layer=i, resolution=2.5, qcbbox...) for i in eachindex(layers(provider))]
+        qcfuture = [SDMLayer(provider, futureclim, timespan=tsp; layer=i, resolution=10.0, qcbbox...) for i in eachindex(layers(provider))]
 
         # NE PAS CHANGER
         for i in eachindex(qcfuture)
@@ -182,7 +216,7 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         fig_shap_future = Figure(size=(800, 700))
         ax = Axis(fig_shap_future[1, 1], aspect=DataAspect())
         heatmap!(ax, bg, colormap=[:lightgrey, :lightgrey])
-        hm = heatmap!(ax, shap_temp_future, colormap=:diverging_bwr_20_95_c54_n256, colorrange=(-0.4, 0.4))
+        hm = heatmap!(ax, shap_temp_future, colormap=:diverging_bwg_20_95_c41_n256, colorrange=(-0.4, 0.4))
         lines!(ax, QC, color=:black, linewidth=1)
         Colorbar(fig_shap_future[1, 2], hm, height=Relative(0.7))
         scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
