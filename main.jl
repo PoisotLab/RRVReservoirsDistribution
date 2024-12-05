@@ -13,11 +13,11 @@ import Downloads
 using Statistics
 
 # Superficie pour l'entraînement du modèle
-bbox = (left=-120.0, bottom=10.0, right=-60.0, top=55.0)
+bbox = (left=-120.0, bottom=20.0, right=-60.0, top=55.0)
 
 # Données environnementales pour l'entraînement
 provider = RasterData(WorldClim2, BioClim)
-envirovars = [SDMLayer(provider; layer=i, resolution=10.0, bbox...) for i in eachindex(layers(provider))]
+envirovars = [SDMLayer(provider; layer=i, resolution=5.0, bbox...) for i in eachindex(layers(provider))]
 
 # Température annuelle moyenne
 heatmap(envirovars[1])
@@ -39,7 +39,7 @@ sp = taxon(taxname)
 fname = join(split(sp.name, " "), "-") # Pour sauvegarder les figures
 
 occ = occurrences(sp, envirovars[1], "occurrenceStatus" => "PRESENT", "limit" => 300, "continent" => "NORTH_AMERICA")
-while length(occ) < min(40_000, count(occ)) # Max. 10000, sinon toutes
+while length(occ) < min(15_000, count(occ)) # Max. 10000, sinon toutes
     occurrences!(occ)
 end
 
@@ -83,7 +83,6 @@ SimpleSDMLayers.save(joinpath(rpath, "$(fname)-absence.tiff"), convert(SDMLayer{
 
 ## Modèle 
 sdm = SDM(ZScore, DecisionTree, envirovars, presencelayer, absencelayer)
-
 train!(sdm)
 
 ## Optimisation
@@ -108,7 +107,7 @@ outofbag(ensemble) |> (x) -> 1 - accuracy(x)
 QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
 qcbbox = SpeciesDistributionToolkit.boundingbox(QC; padding=1.5)
 
-qccurrent = [SDMLayer(provider; layer=i, resolution=10.0, qcbbox...) for i in eachindex(layers(provider))]
+qccurrent = [SDMLayer(provider; layer=i, resolution=5.0, qcbbox...) for i in eachindex(layers(provider))]
 bg = copy(qccurrent[1])
 SimpleSDMLayers.save(joinpath(rpath, "$(fname)-qc.tiff"), convert(SDMLayer{UInt8}, !isnan.(bg)))
 msk = mask!(copy(qccurrent[1]), QC)
@@ -187,7 +186,7 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         range_txt = "$(range_begin)-$(range_end)"
 
 
-        qcfuture = [SDMLayer(provider, futureclim, timespan=tsp; layer=i, resolution=10.0, qcbbox...) for i in eachindex(layers(provider))]
+        qcfuture = [SDMLayer(provider, futureclim, timespan=tsp; layer=i, resolution=5.0, qcbbox...) for i in eachindex(layers(provider))]
 
         # NE PAS CHANGER
         for i in eachindex(qcfuture)
@@ -270,33 +269,5 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         )
         current_figure()
         save(joinpath(fpath, "$(fname)-mostimportant-$(ssp)-$(range_txt).png"), current_figure())
-
-        # Nouveauté climatique
-        using Statistics
-        μ = mean.(qccurrent)
-        σ = std.(qccurrent)
-
-        cr_current = (qccurrent .- μ) ./ σ
-        cr_future = (qcfuture .- μ) ./ σ
-
-        Δclim = similar(cr_current[1])
-        vals = values.(cr_future)
-        for position in keys(cr_current[1])
-            dvar = [(cr_current[u][position] .- vals[u]) .^ 2.0 for u in variables(ensemble)]
-            sm = vec(sum(hcat(dvar...); dims=2))
-            sm[findall(isnan, sm)] .= 1000000.0
-            Δclim[position] = minimum(sqrt.(sm))
-        end
-
-        # Nouveauté climatique
-        fig_novelty = Figure(size=(800, 700))
-        ax = Axis(fig_novelty[1, 1], aspect=DataAspect())
-        heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
-        hm = heatmap!(ax, Δclim, colormap=:linear_worb_100_25_c53_n256, colorrange=quantile(Δclim, [0.05, 0.95]))
-        lines!(ax, QC, color=:black, linewidth=1)
-        Colorbar(fig_novelty[1, 2], hm, height=Relative(0.7))
-        scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
-        current_figure()
-        save(joinpath(fpath, "$(fname)-climate-novelty-$(ssp)-$(range_txt).png"), current_figure())
     end
 end
