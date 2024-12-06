@@ -33,6 +33,9 @@ sp_thumbnail_tmp = Downloads.download(sp_thumbnail_url)
 sp_image = Images.load(sp_thumbnail_tmp)
 sp_size = Vec2f(reverse(size(sp_image) ./ 2))
 
+# Projection des données dans NAD 1983 Albers North America
+envirovars = [interpolate(e; dest="+proj=aea +lat_0=40 +lon_0=-96 +lat_1=20 +lat_2=60 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs +type=crs") for e in envirovars]
+
 # Température annuelle moyenne
 heatmap(envirovars[1])
 
@@ -57,8 +60,8 @@ presencelayer = mask(envirovars[1], occ)
 # Pseudo-absences
 event_dist = pseudoabsencemask(DistanceToEvent, presencelayer)
 pa_mask = copy(event_dist)
-nodata!(pa_mask, x -> x <= 15.0)
-nodata!(pa_mask, x -> x >= 300.0)
+nodata!(pa_mask, x -> x <= 10.0)
+nodata!(pa_mask, x -> x >= 500.0)
 absencelayer = backgroundpoints(pa_mask, 2sum(presencelayer))
 
 # On garde uniquement les points qui sont soit une absence, soit une présence
@@ -71,7 +74,7 @@ ax = Axis(fig_training[1, 1]; aspect=DataAspect())
 heatmap!(ax, envirovars[1], colormap=[colorant"#efefef", colorant"#efefef"])
 scatter!(ax, presencelayer, color=:orange, markersize=3)
 scatter!(ax, absencelayer, color=:black, markersize=2)
-scatter!(ax, [-65.0], [37.5]; marker=sp_image, markersize=sp_size)
+#scatter!(ax, [-65.0], [37.5]; marker=sp_image, markersize=sp_size)
 current_figure()
 save(joinpath(fpath, "$(fname)-data.png"), current_figure())
 
@@ -82,7 +85,7 @@ SimpleSDMLayers.save(joinpath(rpath, "$(fname)-presence.tiff"), convert(SDMLayer
 SimpleSDMLayers.save(joinpath(rpath, "$(fname)-absence.tiff"), convert(SDMLayer{UInt8}, absencelayer))
 
 ## Modèle 
-sdm = SDM(ZScore, DecisionTree, envirovars, presencelayer, absencelayer)
+sdm = SDM(RawData, DecisionTree, envirovars, presencelayer, absencelayer)
 train!(sdm)
 
 ## Optimisation
@@ -96,7 +99,7 @@ mcc(cv.validation)
 mcc(cv.training)
 
 ## Bagging (random forest)
-ensemble = Bagging(sdm, 32)
+ensemble = Bagging(sdm, 16)
 bagfeatures!(ensemble)
 train!(ensemble)
 
@@ -105,9 +108,11 @@ outofbag(ensemble) |> (x) -> 1 - accuracy(x)
 
 #### Prédiction seulement pour le QC
 QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
-qcbbox = SpeciesDistributionToolkit.boundingbox(QC; padding=1.5)
+qcbbox = SpeciesDistributionToolkit.boundingbox(QC; padding=0.0)
 
-qccurrent = [SDMLayer(provider; layer=i, resolution=2.5, qcbbox...) for i in eachindex(layers(provider))]
+# Projection vers NAD 1983 Albers North America
+qccurrent = [SDMLayer(provider; layer=i, resolution=5.0, qcbbox...) for i in eachindex(layers(provider))]
+qccurrent = [interpolate(l; dest="+proj=aea +lat_0=40 +lon_0=-96 +lat_1=20 +lat_2=60 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs +type=crs") for l in qccurrent]
 bg = copy(qccurrent[1])
 SimpleSDMLayers.save(joinpath(rpath, "$(fname)-qc.tiff"), convert(SDMLayer{UInt8}, !isnan.(bg)))
 msk = mask!(copy(qccurrent[1]), QC)
@@ -127,12 +132,14 @@ shaprange(v) = maximum(abs.(quantile(v, [0.05, 0.95]))) .* (-1, 1)
 
 # Prédiction (climat historique)
 fig_pred_qc = Figure(size=(800, 700))
-ax = Axis(fig_pred_qc[1, 1], aspect=DataAspect())
+ax = Axis(fig_pred_qc[1, 1])#, aspect=DataAspect())
 heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
 hm = heatmap!(ax, pr_qc_current, colormap=:Oranges, colorrange=(0, 1))
-lines!(ax, QC, color=:black, linewidth=1)
+#lines!(ax, QC, color=:black, linewidth=1)
 Colorbar(fig_pred_qc[1, 2], hm, height=Relative(0.7))
-scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+#scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+hidespines!(ax)
+hidedecorations!(ax)
 current_figure()
 save(joinpath(fpath, "$(fname)-pred-current.png"), current_figure())
 
