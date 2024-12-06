@@ -10,14 +10,28 @@ CairoMakie.activate!(; type="png", px_per_unit=3) # Haute résolution pour les f
 import Dates
 import Images
 import Downloads
+import CSV
 using Statistics
 
-# Superficie pour l'entraînement du modèle
-bbox = (left=-135.0, bottom=23.0, right=-60.0, top=55.0)
+# Load CSV data
+records = CSV.File("0022970-241126133413365.csv")
+records = filter(r -> isequal(taxname)(r.species), records)
+
+occ = Occurrences([Occurrence(r.species, true, (r.decimalLongitude, r.decimalLatitude), r.dateIdentified) for r in records])
+
+bbox = SpeciesDistributionToolkit.boundingbox(occ; padding=2.0)
 
 # Données environnementales pour l'entraînement
 provider = RasterData(WorldClim2, BioClim)
-envirovars = [SDMLayer(provider; layer=i, resolution=5.0, bbox...) for i in eachindex(layers(provider))]
+envirovars = [SDMLayer(provider; layer=i, resolution=10.0, bbox...) for i in eachindex(layers(provider))]
+
+# Image pour les cartes (depuis Phylopic)
+sp_uuid = Phylopic.imagesof(taxname; items=1)
+Phylopic.attribution(sp_uuid)
+sp_thumbnail_url = Phylopic.thumbnail(sp_uuid)
+sp_thumbnail_tmp = Downloads.download(sp_thumbnail_url)
+sp_image = Images.load(sp_thumbnail_tmp)
+sp_size = Vec2f(reverse(size(sp_image) ./ 2))
 
 # Température annuelle moyenne
 heatmap(envirovars[1])
@@ -35,13 +49,7 @@ if ~ispath(rpath)
 end
 
 # Occurrences
-sp = taxon(taxname)
-fname = join(split(sp.name, " "), "-") # Pour sauvegarder les figures
-
-occ = occurrences(sp, envirovars[1], "occurrenceStatus" => "PRESENT", "limit" => 300, "continent" => "NORTH_AMERICA")
-while length(occ) < min(10_000, count(occ)) # Max. 10000, sinon toutes
-    occurrences!(occ)
-end
+fname = join(split(taxname, " "), "-") # Pour sauvegarder les figures
 
 # Spatial thinning
 presencelayer = mask(envirovars[1], occ)
@@ -49,21 +57,13 @@ presencelayer = mask(envirovars[1], occ)
 # Pseudo-absences
 event_dist = pseudoabsencemask(DistanceToEvent, presencelayer)
 pa_mask = copy(event_dist)
-nodata!(pa_mask, x -> x <= 8.0)
-nodata!(pa_mask, x -> x >= 200.0)
+nodata!(pa_mask, x -> x <= 15.0)
+nodata!(pa_mask, x -> x >= 300.0)
 absencelayer = backgroundpoints(pa_mask, 2sum(presencelayer))
 
 # On garde uniquement les points qui sont soit une absence, soit une présence
 nodata!(absencelayer, false)
 nodata!(presencelayer, false)
-
-# Image pour les cartes (depuis Phylopic)
-sp_uuid = Phylopic.imagesof(sp; items=1)
-Phylopic.attribution(sp_uuid)
-sp_thumbnail_url = Phylopic.thumbnail(sp_uuid)
-sp_thumbnail_tmp = Downloads.download(sp_thumbnail_url)
-sp_image = Images.load(sp_thumbnail_tmp)
-sp_size = Vec2f(reverse(size(sp_image) ./ 2))
 
 # Carte avec les données
 fig_training = Figure()
@@ -107,7 +107,7 @@ outofbag(ensemble) |> (x) -> 1 - accuracy(x)
 QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
 qcbbox = SpeciesDistributionToolkit.boundingbox(QC; padding=1.5)
 
-qccurrent = [SDMLayer(provider; layer=i, resolution=5.0, qcbbox...) for i in eachindex(layers(provider))]
+qccurrent = [SDMLayer(provider; layer=i, resolution=2.5, qcbbox...) for i in eachindex(layers(provider))]
 bg = copy(qccurrent[1])
 SimpleSDMLayers.save(joinpath(rpath, "$(fname)-qc.tiff"), convert(SDMLayer{UInt8}, !isnan.(bg)))
 msk = mask!(copy(qccurrent[1]), QC)
@@ -177,6 +177,21 @@ Legend(
 current_figure()
 save(joinpath(fpath, "$(fname)-mostimportant-current.png"), current_figure())
 
+# Stemplot - importance des variables
+s_varimp = mean.(map(l -> abs.(l), S))
+s_varimp ./= sum(s_varimp)
+o_varimp = sortperm(s_varimp; rev=true)
+
+fig_varimp = Figure(size=(800, 700))
+ax = Axis(fig_varimp[1, 1], ylabel="Cumulative variable importance")
+scatter!(ax, cumsum(s_varimp[o_varimp]))
+varlab = "BIO" .* string.(variables(ensemble)[o_varimp])
+text!(ax, 1:length(variables(ensemble)), cumsum(s_varimp[o_varimp]); text=varlab, align=(:center, :top), offset=(0.0, -10.0))
+hidexdecorations!(ax)
+ylims!(ax, 0, 1)
+current_figure()
+save(joinpath(fpath, "$(fname)-varimp-current.png"), current_figure())
+
 for ssp in [SSP126, SSP245, SSP370, SSP585]
     futureclim = Projection(ssp, CanESM5)
 
@@ -186,7 +201,7 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         range_txt = "$(range_begin)-$(range_end)"
 
 
-        qcfuture = [SDMLayer(provider, futureclim, timespan=tsp; layer=i, resolution=5.0, qcbbox...) for i in eachindex(layers(provider))]
+        qcfuture = [SDMLayer(provider, futureclim, timespan=tsp; layer=i, resolution=2.5, qcbbox...) for i in eachindex(layers(provider))]
 
         # NE PAS CHANGER
         for i in eachindex(qcfuture)
@@ -269,5 +284,21 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         )
         current_figure()
         save(joinpath(fpath, "$(fname)-mostimportant-$(ssp)-$(range_txt).png"), current_figure())
+
+
+        # Stemplot - importance des variables
+        s_varimp = mean.(map(l -> abs.(l), S))
+        s_varimp ./= sum(s_varimp)
+        o_varimp = sortperm(s_varimp; rev=true)
+
+        fig_varimp = Figure(size=(800, 700))
+        ax = Axis(fig_varimp[1, 1], ylabel="Cumulative variable importance")
+        scatter!(ax, cumsum(s_varimp[o_varimp]))
+        varlab = "BIO" .* string.(variables(ensemble)[o_varimp])
+        text!(ax, 1:length(variables(ensemble)), cumsum(s_varimp[o_varimp]); text=varlab, align=(:center, :top), offset=(0.0, -10.0))
+        hidexdecorations!(ax)
+        ylims!(ax, 0, 1)
+        current_figure()
+        save(joinpath(fpath, "$(fname)-varimp-$(ssp)-$(range_txt).png"), current_figure())
     end
 end
