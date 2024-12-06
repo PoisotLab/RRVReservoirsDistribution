@@ -13,7 +13,7 @@ import Downloads
 using Statistics
 
 # Superficie pour l'entraînement du modèle
-bbox = (left=-120.0, bottom=20.0, right=-60.0, top=55.0)
+bbox = (left=-135.0, bottom=23.0, right=-60.0, top=55.0)
 
 # Données environnementales pour l'entraînement
 provider = RasterData(WorldClim2, BioClim)
@@ -23,13 +23,13 @@ envirovars = [SDMLayer(provider; layer=i, resolution=5.0, bbox...) for i in each
 heatmap(envirovars[1])
 
 # Fichier pour les figures
-fpath = joinpath(pwd(), "figures")
+fpath = joinpath(pwd(), "figures", taxname)
 if ~ispath(fpath)
     mkpath(fpath)
 end
 
 # Fichier pour les raster
-rpath = joinpath(pwd(), "rasters")
+rpath = joinpath(pwd(), "rasters", taxname)
 if ~ispath(rpath)
     mkpath(rpath)
 end
@@ -39,7 +39,7 @@ sp = taxon(taxname)
 fname = join(split(sp.name, " "), "-") # Pour sauvegarder les figures
 
 occ = occurrences(sp, envirovars[1], "occurrenceStatus" => "PRESENT", "limit" => 300, "continent" => "NORTH_AMERICA")
-while length(occ) < min(15_000, count(occ)) # Max. 10000, sinon toutes
+while length(occ) < min(10_000, count(occ)) # Max. 10000, sinon toutes
     occurrences!(occ)
 end
 
