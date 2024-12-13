@@ -14,6 +14,7 @@ import CSV
 using Statistics
 
 # Load CSV data
+@info "Loading data from the GBIF download"
 records = CSV.File("0022970-241126133413365.csv")
 records = filter(r -> isequal(taxname)(r.species), records)
 
@@ -22,8 +23,9 @@ occ = Occurrences([Occurrence(r.species, true, (r.decimalLongitude, r.decimalLat
 bbox = SpeciesDistributionToolkit.boundingbox(occ; padding=2.0)
 
 # Données environnementales pour l'entraînement
+@info "Loading bioclim data for training"
 provider = RasterData(WorldClim2, BioClim)
-envirovars = [SDMLayer(provider; layer=i, resolution=10.0, bbox...) for i in eachindex(layers(provider))]
+envirovars = [SDMLayer(provider; layer=i, resolution=2.5, bbox...) for i in eachindex(layers(provider))]
 
 # Image pour les cartes (depuis Phylopic)
 sp_uuid = Phylopic.imagesof(taxname; items=1)
@@ -34,6 +36,7 @@ sp_image = Images.load(sp_thumbnail_tmp)
 sp_size = Vec2f(reverse(size(sp_image) ./ 2))
 
 # Projection des données dans NAD 1983 Albers North America
+@info "Interpolating training data"
 envirovars = [interpolate(e; dest="+proj=aea +lat_0=40 +lon_0=-96 +lat_1=20 +lat_2=60 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs +type=crs") for e in envirovars]
 
 # Température annuelle moyenne
@@ -55,9 +58,11 @@ end
 fname = join(split(taxname, " "), "-") # Pour sauvegarder les figures
 
 # Spatial thinning
+@info "Spatial thinning"
 presencelayer = mask(envirovars[1], occ)
 
 # Pseudo-absences
+@info "Pseudo-absences"
 event_dist = pseudoabsencemask(DistanceToEvent, presencelayer)
 pa_mask = copy(event_dist)
 nodata!(pa_mask, x -> x <= 10.0)
@@ -79,6 +84,7 @@ current_figure()
 save(joinpath(fpath, "$(fname)-data.png"), current_figure())
 
 # On sauvegarde les raster
+@info "Saving rasters"
 bg = !isnan.(envirovars[1])
 SimpleSDMLayers.save(joinpath(rpath, "$(fname)-background.tiff"), convert(SDMLayer{UInt8}, bg))
 SimpleSDMLayers.save(joinpath(rpath, "$(fname)-presence.tiff"), convert(SDMLayer{UInt8}, presencelayer))
@@ -89,16 +95,19 @@ sdm = SDM(RawData, DecisionTree, envirovars, presencelayer, absencelayer)
 train!(sdm)
 
 ## Optimisation
+@info "Variable selection"
 folds = kfold(sdm; k=10)
 reset!(sdm)
 forwardselection!(sdm, folds, [1]; verbose=true)
 
 ## Performance
+@info "Cross-validation"
 cv = crossvalidate(sdm, folds)
 mcc(cv.validation)
 mcc(cv.training)
 
 ## Bagging (random forest)
+@info "Bagging and training"
 ensemble = Bagging(sdm, 16)
 bagfeatures!(ensemble)
 train!(ensemble)
@@ -111,7 +120,8 @@ QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
 qcbbox = SpeciesDistributionToolkit.boundingbox(QC; padding=0.0)
 
 # Projection vers NAD 1983 Albers North America
-qccurrent = [SDMLayer(provider; layer=i, resolution=5.0, qcbbox...) for i in eachindex(layers(provider))]
+@info "Loading bioclim data for prediction"
+qccurrent = [SDMLayer(provider; layer=i, resolution=2.5, qcbbox...) for i in eachindex(layers(provider))]
 qccurrent = [interpolate(l; dest="+proj=aea +lat_0=40 +lon_0=-96 +lat_1=20 +lat_2=60 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs +type=crs") for l in qccurrent]
 bg = copy(qccurrent[1])
 SimpleSDMLayers.save(joinpath(rpath, "$(fname)-qc.tiff"), convert(SDMLayer{UInt8}, !isnan.(bg)))
@@ -130,16 +140,19 @@ minf = mosaic(x -> argmax(abs.(x)), S)
 
 shaprange(v) = maximum(abs.(quantile(v, [0.05, 0.95]))) .* (-1, 1)
 
+wgs = (x) -> interpolate(x; dest="+proj=longlat +datum=WGS84 +no_defs +type=crs")
+
 # Prédiction (climat historique)
 fig_pred_qc = Figure(size=(800, 700))
-ax = Axis(fig_pred_qc[1, 1])#, aspect=DataAspect())
+ax = Axis(fig_pred_qc[1, 1], aspect=DataAspect())
 heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
-hm = heatmap!(ax, pr_qc_current, colormap=:Oranges, colorrange=(0, 1))
+hm = heatmap!(ax, pr_qc_current, colormap=:navia, colorrange=(0, 1))
 #lines!(ax, QC, color=:black, linewidth=1)
 Colorbar(fig_pred_qc[1, 2], hm, height=Relative(0.7))
 #scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
 hidespines!(ax)
 hidedecorations!(ax)
+tightlimits!(ax)
 current_figure()
 save(joinpath(fpath, "$(fname)-pred-current.png"), current_figure())
 
@@ -147,10 +160,13 @@ save(joinpath(fpath, "$(fname)-pred-current.png"), current_figure())
 fig_pred_qc = Figure(size=(800, 700))
 ax = Axis(fig_pred_qc[1, 1], aspect=DataAspect())
 heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
-hm = heatmap!(ax, rg_qc_current, colormap=:Oranges, colorrange=(0, 1))
-lines!(ax, QC, color=:black, linewidth=1)
+hm = heatmap!(ax, rg_qc_current, colormap=Reverse(:turku), colorrange=(0, 1))
+#lines!(ax, QC, color=:black, linewidth=1)
 Colorbar(fig_pred_qc[1, 2], hm, height=Relative(0.7))
-scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+#scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+hidespines!(ax)
+hidedecorations!(ax)
+tightlimits!(ax)
 current_figure()
 save(joinpath(fpath, "$(fname)-range-current.png"), current_figure())
 
@@ -158,10 +174,13 @@ for (i, v) in enumerate(variables(ensemble))
     fig_S = Figure(size=(800, 700))
     ax = Axis(fig_S[1, 1], aspect=DataAspect())
     heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
-    hm = heatmap!(ax, S[i], colormap=:diverging_bwg_20_95_c41_n256, colorrange=shaprange(S[i]))
-    lines!(ax, QC, color=:black, linewidth=1)
+    hm = heatmap!(ax, S[i], colormap=:roma, colorrange=shaprange(S[i]))
+    #lines!(ax, QC, color=:black, linewidth=1)
     Colorbar(fig_S[1, 2], hm, height=Relative(0.7))
-    scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+    #scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+    hidespines!(ax)
+    hidedecorations!(ax)
+    tightlimits!(ax)
     current_figure()
     save(joinpath(fpath, "$(fname)-BIO$(v)-effect-current.png"), current_figure())
 end
@@ -172,15 +191,18 @@ ax = Axis(fig_maxinf[1, 1], aspect=DataAspect())
 heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
 var_colors = cgrad(:diverging_rainbow_bgymr_45_85_c67_n256, length(variables(ensemble)), categorical=true)
 hm = heatmap!(ax, minf; colormap=var_colors, colorrange=(1, length(variables(ensemble))))
-lines!(ax, QC, color=:black, linewidth=1)
-scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+#lines!(ax, QC, color=:black, linewidth=1)
+#scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
 Legend(
     fig_maxinf[2, 1],
     [PolyElement(; color=var_colors[i]) for i in 1:length(variables(ensemble))],
     "BIO" .* string.(variables(ensemble));
     orientation=:horizontal,
-    nbanks=1,
+    nbanks=2,
 )
+hidespines!(ax)
+hidedecorations!(ax)
+tightlimits!(ax)
 current_figure()
 save(joinpath(fpath, "$(fname)-mostimportant-current.png"), current_figure())
 
@@ -209,6 +231,7 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
 
 
         qcfuture = [SDMLayer(provider, futureclim, timespan=tsp; layer=i, resolution=2.5, qcbbox...) for i in eachindex(layers(provider))]
+        qcfuture = [interpolate(l; dest="+proj=aea +lat_0=40 +lon_0=-96 +lat_1=20 +lat_2=60 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs +type=crs") for l in qcfuture]
 
         # NE PAS CHANGER
         for i in eachindex(qcfuture)
@@ -227,10 +250,13 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         fig_future_qc = Figure(size=(800, 700))
         ax = Axis(fig_future_qc[1, 1], aspect=DataAspect())
         heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
-        hm = heatmap!(ax, pr_qc_future, colormap=:Oranges, colorrange=(0, 1))
-        lines!(ax, QC, color=:black, linewidth=1)
+        hm = heatmap!(ax, pr_qc_future, colormap=:navia, colorrange=(0, 1))
+        #lines!(ax, QC, color=:black, linewidth=1)
         Colorbar(fig_future_qc[1, 2], hm, height=Relative(0.7))
-        scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+        #scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+        hidespines!(ax)
+        hidedecorations!(ax)
+        tightlimits!(ax)
         current_figure()
         save(joinpath(fpath, "$(fname)-pred-future-$(ssp)-$(range_txt).png"), current_figure())
 
@@ -238,10 +264,13 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         fig_pred_qc = Figure(size=(800, 700))
         ax = Axis(fig_pred_qc[1, 1], aspect=DataAspect())
         heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
-        hm = heatmap!(ax, rg_qc_future, colormap=:Oranges, colorrange=(0, 1))
-        lines!(ax, QC, color=:black, linewidth=1)
+        hm = heatmap!(ax, rg_qc_future, colormap=Reverse(:turku), colorrange=(0, 1))
+        #lines!(ax, QC, color=:black, linewidth=1)
         Colorbar(fig_pred_qc[1, 2], hm, height=Relative(0.7))
-        scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+        #scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+        hidespines!(ax)
+        hidedecorations!(ax)
+        tightlimits!(ax)
         current_figure()
         save(joinpath(fpath, "$(fname)-range-future-$(ssp)-$(range_txt).png"), current_figure())
 
@@ -249,11 +278,14 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         fig_rangediff = Figure(size=(800, 700))
         ax = Axis(fig_rangediff[1, 1], aspect=DataAspect())
         heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
-        heatmap!(ax, gainloss(rg_qc_current, rg_qc_future), colormap=:diverging_isoluminant_cjm_75_c23_n256, colorrange=(-1, 1))
-        scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
-        lines!(ax, QC, color=:black, linewidth=1)
+        heatmap!(ax, gainloss(rg_qc_current, rg_qc_future), colormap=:managua, colorrange=(-1, 1))
+        #scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+        #lines!(ax, QC, color=:black, linewidth=1)
         #Colorbar(fig_pred_qc[1, 2], hm, height=Relative(0.7))
-        scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+        #scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+        hidespines!(ax)
+        hidedecorations!(ax)
+        tightlimits!(ax)
         current_figure()
         save(joinpath(fpath, "$(fname)-range-shift-$(ssp)-$(range_txt).png"), current_figure())
 
@@ -266,10 +298,13 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
             fig_S = Figure(size=(800, 700))
             ax = Axis(fig_S[1, 1], aspect=DataAspect())
             heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
-            hm = heatmap!(ax, S[i], colormap=:diverging_bwg_20_95_c41_n256, colorrange=shaprange(S[i]))
-            lines!(ax, QC, color=:black, linewidth=1)
+            hm = heatmap!(ax, S[i], colormap=:roma, colorrange=shaprange(S[i]))
+            #lines!(ax, QC, color=:black, linewidth=1)
             Colorbar(fig_S[1, 2], hm, height=Relative(0.7))
-            scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+            #scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+            hidespines!(ax)
+            hidedecorations!(ax)
+            tightlimits!(ax)
             current_figure()
             save(joinpath(fpath, "$(fname)-BIO$(v)-effect-$(ssp)-$(range_txt).png"), current_figure())
         end
@@ -280,8 +315,11 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         heatmap!(ax, bg, colormap=[colorant"#efefef", colorant"#efefef"])
         var_colors = cgrad(:diverging_rainbow_bgymr_45_85_c67_n256, length(variables(ensemble)), categorical=true)
         hm = heatmap!(ax, minf; colormap=var_colors, colorrange=(1, length(variables(ensemble))))
-        lines!(ax, QC, color=:black, linewidth=1)
-        scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+        #lines!(ax, QC, color=:black, linewidth=1)
+        #scatter!(ax, [-60.0], [60.0]; marker=sp_image, markersize=sp_size)
+        hidespines!(ax)
+        hidedecorations!(ax)
+        tightlimits!(ax)
         Legend(
             fig_maxinf[2, 1],
             [PolyElement(; color=var_colors[i]) for i in 1:length(variables(ensemble))],
