@@ -17,4 +17,3 @@ folds = kfold(sdm)
 
 train!(sdm)
 cv = crossvalidate(sdm, folds)
-
