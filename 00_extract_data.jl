@@ -19,17 +19,17 @@ bbox = SpeciesDistributionToolkit.boundingbox(occ; padding=2.0)
 
 @info "Loading bioclim data for training"
 provider = RasterData(WorldClim2, BioClim)
-envirovars = [SDMLayer(provider; layer=i, resolution=2.5, bbox...) for i in eachindex(layers(provider))]
+envirovars = [SDMLayer(provider; layer=i, resolution=10.0, bbox...) for i in eachindex(layers(provider))]
 
 @info "Thinning the occurrences to the grid"
 presencelayer = mask(envirovars[1], occ)
 
 @info "Generating pseudo-absences mask"
 pa_mask = pseudoabsencemask(SurfaceRangeEnvelope, presencelayer)
-#event_dist = pseudoabsencemask(DistanceToEvent, presencelayer)
-#pa_mask = copy(event_dist)
-#nodata!(pa_mask, x -> x <= 10.0)
-#nodata!(pa_mask, x -> x >= 500.0)
+event_dist = pseudoabsencemask(DistanceToEvent, presencelayer)
+pa_mask = copy(event_dist)
+nodata!(pa_mask, x -> x <= 10.0)
+nodata!(pa_mask, x -> x >= 500.0)
 
 @info "Sampling pseudo-absences"
 absencelayer = backgroundpoints(pa_mask, 3sum(presencelayer))
