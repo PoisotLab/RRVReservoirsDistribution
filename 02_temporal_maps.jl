@@ -30,7 +30,7 @@ function get_both_sp(scenario, timeframe)
     return raccoon | skunk
 end
 
-scenario = "SSP585"
+scenario = "SSP245"
 timeframes = ["2021-2040", "2041-2060", "2061-2080", "2081-2100"]
 
 ranges = [get_both_sp(scenario, tf) for tf in timeframes]
@@ -43,6 +43,8 @@ function _findfirst(x)
 end
 
 earliest = nodata(mosaic(_findfirst, ranges), 0)
+
+#earliest = trim(interpolate(earliest; dest="+proj=aea +lat_0=40 +lon_0=-96 +lat_1=20 +lat_2=60 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs +type=crs"))
 
 var_colors = collect(cgrad(:navia, length(ranges)+1, categorical=true))
 deleteat!(var_colors, 2)
