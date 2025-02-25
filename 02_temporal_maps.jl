@@ -14,6 +14,8 @@ update_theme!(;
     CairoMakie = (; px_per_unit = 6),
 )
 
+QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
+
 # Load the current maps
 
 function get_baseline()
@@ -42,8 +44,10 @@ end
 
 earliest = nodata(mosaic(_findfirst, ranges), 0)
 
-var_colors = collect(cgrad(:lapaz, length(ranges)+1, categorical=true))
+var_colors = collect(cgrad(:navia, length(ranges)+1, categorical=true))
 deleteat!(var_colors, 2)
+
+time_labels = ["Current", "2030", "2050", "2070", "2090"]
 
 f = Figure(; size = (800, 700))
 ax = Axis(f[1, 1], aspect=DataAspect())
@@ -51,11 +55,21 @@ heatmap!(ax, ranges[1], colormap=["#dfdfdf", "#dfdfdf"])
 hm = heatmap!(ax, earliest; colormap = var_colors, colorrange=(1, length(ranges)))
 hidedecorations!(ax)
 hidespines!(ax)
-Legend(
-    f[2, 1],
-    [PolyElement(; color = var_colors[i]) for i in 1:length(var_colors)],
-    ["Current", "2030", "2050", "2070", "2090"];
-    orientation = :horizontal,
-    nbanks = 1,
+tightlimits!(ax)
+lines!(ax, QC, color=:black)
+ax_inset = Axis(f[1, 1],
+    width=Relative(0.38),
+    height=Relative(0.15),
+    halign=1.0,
+    valign=0.0,
+    xticks = (1:5, time_labels)
 )
+hits = [sum(earliest.==v) for v in 1:length(ranges)]
+barplot!(ax_inset, hits, color = var_colors, strokewidth=1)
+hidespines!(ax_inset, :t, :r, :l)
+hideydecorations!(ax_inset)
+hidexdecorations!(ax_inset, ticklabels=false)
+tightlimits!(ax_inset)
 current_figure()
+
+CairoMakie.save("both_$(scenario).png", current_figure())
