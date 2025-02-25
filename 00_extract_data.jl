@@ -25,7 +25,6 @@ envirovars = [SDMLayer(provider; layer=i, resolution=10.0, bbox...) for i in eac
 presencelayer = mask(envirovars[1], occ)
 
 @info "Generating pseudo-absences mask"
-pa_mask = pseudoabsencemask(SurfaceRangeEnvelope, presencelayer)
 event_dist = pseudoabsencemask(DistanceToEvent, presencelayer)
 pa_mask = copy(event_dist)
 nodata!(pa_mask, x -> x <= 10.0)
@@ -44,8 +43,8 @@ function X(L, points)
     return transpose(hcat(V...))
 end
 
-X₊ = X(envirovars,presencelayer)
-X₋ = X(envirovars,absencelayer)
+X₊ = X(envirovars, presencelayer)
+X₋ = X(envirovars, absencelayer)
 
 𝐲 = vcat(ones(Bool, sum(presencelayer)), zeros(Bool, sum(absencelayer)))
 𝐗 = hcat(X₊, X₋)

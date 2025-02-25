@@ -16,16 +16,13 @@ end
 sdm = SDM(ZScore, Logistic, 𝐗, 𝐲)
 folds = kfold(sdm)
 
+@info "Select variables"
 forwardselection!(sdm, folds; verbose=true)
 
+@info "Report on cross-validation"
 cv = crossvalidate(sdm, folds)
 mcc(cv.validation)
 mcc(cv.training)
-
-sdm.classifier.verbose = false
-sdm.classifier.η = 1e-3
-sdm.classifier.epochs = 12_000
-train!(sdm)
 
 @info "Loading bioclim data for prediction"
 provider = RasterData(WorldClim2, BioClim)
@@ -38,9 +35,54 @@ mask!(envirovars, QC)
 predict(sdm, envirovars; threshold=false) |> heatmap
 predict(sdm, envirovars; threshold=true) |> heatmap
 
-variableimportance(sdm, folds)
+@info "Prepare to save stuff"
+fname = replace(taxname, " " => "_")
 
-heatmap(explain(sdm, envirovars, 1; threshold=false))
+@info "Plot the partial responses"
+lnames = layers(provider)
+ldescr = layerdescriptions(provider)
 
-lines(partialresponse(sdm, 7; threshold=false)...)
-lines(partialresponse(sdm, 1; threshold=false)...)
+for v in variables(sdm)
+    @info ldescr[lnames[v]]
+    fpath = joinpath("figures", fname * "_" * "partialresponse_$(lnames[v]).png")
+    f = Figure(; size=(600, 600))
+    ax = Axis(f[1, 1], xlabel=ldescr[lnames[v]], ylabel="Score for $(taxname)")
+    for i in 1:100
+        lines!(ax, partialresponse(sdm, v; inflated=true, threshold=false)..., color=:grey, alpha=0.4)
+    end
+    lines!(ax, partialresponse(sdm, v; threshold=false)..., color=:black, linewidth=2)
+    tightlimits!(ax)
+    CairoMakie.save(fpath, f)
+end
+
+@info "Shapley values"
+S = explain(sdm, envirovars; threshold=false)
+
+@info "Save the Shapley values"
+sname = joinpath("rasters", fname * "_" * "shapley.tif")
+SimpleSDMLayers.save(sname, S)
+
+@info "Save the range"
+sname = joinpath("rasters", fname * "_" * "historical.tif")
+proba = predict(sdm, envirovars; threshold=false)
+range = predict(sdm, envirovars; threshold=true)
+SimpleSDMLayers.save(sname, SDMLayer{Float64}[proba, range])
+
+@info "Forecast"
+for ssp in [SSP126, SSP245, SSP370, SSP585]
+    futureclim = Projection(ssp, CanESM5)
+    @info ssp
+    for tsp in SimpleSDMDatasets.timespans(provider, futureclim)
+        range_begin = tsp.first.value
+        range_end = tsp.second.value
+        range_txt = "$(range_begin)-$(range_end)"
+        @info range_txt
+
+        qcfuture = [SDMLayer(provider, futureclim, timespan=tsp; layer=i, resolution=5.0, bbox...) for i in eachindex(layers(provider))]
+        mask!(qcfuture, QC)
+        local proba = predict(sdm, qcfuture; threshold=false)
+        local range = predict(sdm, qcfuture; threshold=true)
+        sname = joinpath("rasters", fname * "_" * "$(ssp)_$(range_txt).tif")
+        SimpleSDMLayers.save(sname, SDMLayer{Float64}[proba, range])
+    end
+end
