@@ -1,6 +1,7 @@
 using SpeciesDistributionToolkit
 using CairoMakie
 import DelimitedFiles
+using PrettyTables
 import CSV
 
 taxname = "Mephitis mephitis"
@@ -16,8 +17,17 @@ end
 sdm = SDM(ZScore, Logistic, 𝐗, 𝐲)
 folds = kfold(sdm)
 
+# Set some better training parameters
+sdm.classifier.verbose = false
+sdm.classifier.η = 1e-3
+sdm.classifier.epochs = 5000
+
 @info "Select variables"
 forwardselection!(sdm, folds; verbose=true)
+
+@info "Report variables"
+DelimitedFiles.writedlm("data/$(replace(taxname, " " => "_")).params", variables(sdm))
+DelimitedFiles.writedlm("data/$(replace(taxname, " " => "_")).threshold", threshold(sdm))
 
 @info "Report on cross-validation"
 cv = crossvalidate(sdm, folds)
@@ -28,7 +38,7 @@ mcc(cv.training)
 provider = RasterData(WorldClim2, BioClim)
 QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
 bbox = SpeciesDistributionToolkit.boundingbox(QC; padding=0.0)
-envirovars = [SDMLayer(provider; layer=i, resolution=5.0, bbox...) for i in eachindex(layers(provider))]
+envirovars = [SDMLayer(provider; layer=i, resolution=2.5, bbox...) for i in eachindex(layers(provider))]
 mask!(envirovars, QC)
 
 @info "Baseline prediction"
@@ -78,7 +88,8 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         range_txt = "$(range_begin)-$(range_end)"
         @info range_txt
 
-        qcfuture = [SDMLayer(provider, futureclim, timespan=tsp; layer=i, resolution=5.0, bbox...) for i in eachindex(layers(provider))]
+        qcfuture = [SDMLayer(provider, futureclim, timespan=tsp; layer=i, resolution=2.5, bbox...) for i in eachindex(layers(provider))]
+        qcfuture = [interpolate(qcf, first(envirovars)) for qcf in qcfuture] # Force compatibility
         mask!(qcfuture, QC)
         local proba = predict(sdm, qcfuture; threshold=false)
         local range = predict(sdm, qcfuture; threshold=true)
