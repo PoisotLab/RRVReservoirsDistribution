@@ -31,8 +31,12 @@ DelimitedFiles.writedlm("data/$(replace(taxname, " " => "_")).threshold", thresh
 
 @info "Report on cross-validation"
 cv = crossvalidate(sdm, folds)
-mcc(cv.validation)
-mcc(cv.training)
+@info "MCC val.", mcc(cv.validation)
+@info "MCC trn.", mcc(cv.training)
+@info "PPV val.", ppv(cv.validation)
+@info "PPV trn.", ppv(cv.training)
+@info "NPV val.", npv(cv.validation)
+@info "NPV trn.", npv(cv.training)
 
 @info "Loading bioclim data for prediction"
 provider = RasterData(WorldClim2, BioClim)
