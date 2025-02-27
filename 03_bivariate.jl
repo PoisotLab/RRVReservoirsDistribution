@@ -16,54 +16,68 @@ update_theme!(;
 
 QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
 
-scenario = "SSP126"
-timeframe = "2041-2060"
-
-# Layers
-raccoon = SDMLayer("rasters/Procyon_lotor_$(scenario)_$(timeframe).tif", bandnumber=1)
-skunk = SDMLayer("rasters/Mephitis_mephitis_$(scenario)_$(timeframe).tif", bandnumber=1)
-r_raccoon = SDMLayer("rasters/Procyon_lotor_$(scenario)_$(timeframe).tif", bandnumber=2) .== 1
-r_skunk = SDMLayer("rasters/Mephitis_mephitis_$(scenario)_$(timeframe).tif", bandnumber=2) .== 1
-
-#mask!(raccoon, nodata(r_raccoon, false))
-#mask!(skunk, nodata(r_skunk, false))
-
 # Palette functions
 include("multivariate-palettes.jl")
 
-# Prepare the bivariate map
-nbins = 3
+scenarios = ["SSP126", "SSP245", "SSP370", "SSP585"]
+timeframes = ["2021-2040", "2041-2060", "2061-2080", "2081-2100"]
 
-rbiv = ((x) -> round(Int64, x * (nbins-1)) + 1).(raccoon)
-sbiv = ((x) -> round(Int64, x * (nbins-1)) + 1).(skunk)
+for scenario in scenarios, timeframe in timeframes
+    # Layers
+    raccoon = SDMLayer("rasters/Procyon_lotor_$(scenario)_$(timeframe).tif", bandnumber=1)
+    skunk = SDMLayer("rasters/Mephitis_mephitis_$(scenario)_$(timeframe).tif", bandnumber=1)
+    r_raccoon = SDMLayer("rasters/Procyon_lotor_$(scenario)_$(timeframe).tif", bandnumber=2) .== 1
+    r_skunk = SDMLayer("rasters/Mephitis_mephitis_$(scenario)_$(timeframe).tif", bandnumber=2) .== 1
 
-pal = _get_bivariate_colormap(n_stops=nbins, p1 = colorant"#73ae80", p2 = colorant"#6c83b5")
-smpal = _get_bivariate_colormap(n_stops=3, p1 = colorant"#73ae80", p2 = colorant"#6c83b5")
+    # Out of range!
+    nodata!(r_raccoon, true)
+    for k in keys(r_raccoon)
+        raccoon[k] = 0.0
+    end
+    
+    nodata!(r_skunk, true)
+    for k in keys(r_skunk)
+        skunk[k] = 0.0
+    end
 
-lics = LinearIndices(pal)
-bivlayer = similar(rbiv)
-for k in keys(bivlayer)
-    bivlayer[k] = lics[rbiv[k], sbiv[k]]
+    # Prepare the bivariate map
+    nbins = 5
+
+    rbiv = ((x) -> round(Int64, x * (nbins-1)) + 1).(raccoon)
+    sbiv = ((x) -> round(Int64, x * (nbins-1)) + 1).(skunk)
+
+    colpal = (p0 = colorant"#e8e8e8", p1 = colorant"#c8b35a", p2 = colorant"#9972af")
+
+    pal = _get_bivariate_colormap(; n_stops=nbins, colpal...)
+    smpal = _get_bivariate_colormap(; n_stops=5, colpal...)
+
+    lics = LinearIndices(pal)
+    bivlayer = similar(rbiv)
+    for k in keys(bivlayer)
+        bivlayer[k] = lics[rbiv[k], sbiv[k]]
+    end
+
+    f = Figure(; size = (800, 700))
+    ax = Axis(f[1, 1], aspect=DataAspect())
+    heatmap!(ax, bivlayer, colormap=vec(pal))
+    hidedecorations!(ax)
+    hidespines!(ax)
+    tightlimits!(ax)
+    lines!(ax, QC, color=:black)
+    ax_inset = Axis(f[1, 1],
+        aspect = 1,
+        width=Relative(0.25),
+        height=Relative(0.25),
+        halign=1.0,
+        valign=1.0,
+        xlabel = "Raccoon",
+        ylabel = "Skunk",
+    )
+    heatmap!(ax_inset, smpal)
+    hideydecorations!(ax_inset, label=false)
+    hidexdecorations!(ax_inset, label=false)
+    tightlimits!(ax_inset)
+    current_figure()
+    
+    CairoMakie.save("paperfigures/bivariate_suitability_$(scenario)_$(timeframe).png", current_figure())
 end
-
-f = Figure(; size = (800, 700))
-ax = Axis(f[1, 1], aspect=DataAspect())
-heatmap!(ax, bivlayer, colormap=vec(pal))
-hidedecorations!(ax)
-hidespines!(ax)
-tightlimits!(ax)
-lines!(ax, QC, color=:black)
-ax_inset = Axis(f[1, 1],
-    aspect = 1,
-    width=Relative(0.25),
-    height=Relative(0.25),
-    halign=1.0,
-    valign=1.0,
-    xlabel = "Raccoon",
-    ylabel = "Skunk",
-)
-heatmap!(ax_inset, smpal)
-hideydecorations!(ax_inset, label=false)
-hidexdecorations!(ax_inset, label=false)
-tightlimits!(ax_inset)
-current_figure()
