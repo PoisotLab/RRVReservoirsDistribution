@@ -41,15 +41,20 @@ for scenario in scenarios, timeframe in timeframes
     end
 
     # Prepare the bivariate map
-    nbins = 5
+    nbins = 3
 
     rbiv = ((x) -> round(Int64, x * (nbins-1)) + 1).(raccoon)
     sbiv = ((x) -> round(Int64, x * (nbins-1)) + 1).(skunk)
 
-    colpal = (p0 = colorant"#e8e8e8", p1 = colorant"#c8b35a", p2 = colorant"#9972af")
+    stevens1 = (p0 = colorant"#e8e8e8", p1 = colorant"#c85a5a", p2 = colorant"#64acbe")
+    stevens2 = (p0 = colorant"#e8e8e8", p1 = colorant"#5ac8c8", p2 = colorant"#be64ac")
+    stevens3 = (p0 = colorant"#e8e8e8", p1 = colorant"#6c83b5", p2 = colorant"#73ae80")
+    stevens4 = (p0 = colorant"#e8e8e8", p1 = colorant"#c8b35a", p2 = colorant"#9972af")
+
+    colpal = stevens1
 
     pal = _get_bivariate_colormap(; n_stops=nbins, colpal...)
-    smpal = _get_bivariate_colormap(; n_stops=5, colpal...)
+    smpal = _get_bivariate_colormap(; n_stops=3, colpal...)
 
     lics = LinearIndices(pal)
     bivlayer = similar(rbiv)
