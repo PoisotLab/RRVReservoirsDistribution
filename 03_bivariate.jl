@@ -16,8 +16,8 @@ update_theme!(;
 
 QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
 
-scenario = "SSP585"
-timeframe = "2081-2100"
+scenario = "SSP126"
+timeframe = "2041-2060"
 
 # Layers
 raccoon = SDMLayer("rasters/Procyon_lotor_$(scenario)_$(timeframe).tif", bandnumber=1)
