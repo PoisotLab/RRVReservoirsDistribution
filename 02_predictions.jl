@@ -20,7 +20,7 @@ train!(sdm)
 provider = RasterData(WorldClim2, BioClim)
 QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
 bbox = SpeciesDistributionToolkit.boundingbox(QC; padding=0.0)
-envirovars = [SDMLayer(provider; layer=i, resolution=2.5, bbox...) for i in eachindex(layers(provider))]
+envirovars = [SDMLayer(provider; layer=i, resolution=10.0, bbox...) for i in eachindex(layers(provider))]
 mask!(envirovars, QC)
 
 @info "Baseline prediction"
@@ -74,26 +74,38 @@ SimpleSDMLayers.save(sname, S)
 
 @info "Save the range"
 sname = joinpath("rasters", fname * "_" * "historical.tif")
-proba = predict(sdm, envirovars; threshold=false)
-range = predict(sdm, envirovars; threshold=true)
-SimpleSDMLayers.save(sname, SDMLayer{Float64}[proba, range])
+baseline_proba = predict(sdm, envirovars; threshold=false)
+baseline_range = predict(sdm, envirovars; threshold=true)
+SimpleSDMLayers.save(sname, SDMLayer{Float64}[baseline_proba, baseline_range])
 
-@info "Forecast"
+SSPs = [SSP126, SSP245, SSP370, SSP585]
+GCMs = [INM_CM5_0, CanESM5, MRI_ESM2_0, MIROC_ES2L, ACCESS_CM2]
+timespans = SimpleSDMDatasets.timespans(provider, Projection(SSPs[1], GCMs[1]))
+
+function _predict(sdm, poly, template, provider, future, timespan; kwargs...)
+    future = [SDMLayer(provider, future, timespan=timespan; layer=i, kwargs...) for i in eachindex(layers(provider))]
+    future = [interpolate(fl, template) for fl in future]
+    mask!(future, poly)
+    return predict(sdm, future; threshold=false)
+end
+
+@info "Forecast - GCM averaging"
 for ssp in [SSP126, SSP245, SSP370, SSP585]
-    futureclim = Projection(ssp, CanESM5)
-    @info ssp
-    for tsp in SimpleSDMDatasets.timespans(provider, futureclim)
-        range_begin = tsp.first.value
-        range_end = tsp.second.value
-        range_txt = "$(range_begin)-$(range_end)"
-        @info range_txt
-
-        qcfuture = [SDMLayer(provider, futureclim, timespan=tsp; layer=i, resolution=2.5, bbox...) for i in eachindex(layers(provider))]
-        qcfuture = [interpolate(qcf, first(envirovars)) for qcf in qcfuture] # Force compatibility
-        mask!(qcfuture, QC)
-        local proba = predict(sdm, qcfuture; threshold=false)
-        local range = predict(sdm, qcfuture; threshold=true)
-        sname = joinpath("rasters", fname * "_" * "$(ssp)_$(range_txt).tif")
-        SimpleSDMLayers.save(sname, SDMLayer{Float64}[proba, range])
+    for timespan in timespans
+        range_begin = timespan.first.value
+        range_end = timespan.second.value
+        scores = SDMLayer{Float64}[]
+        # Run for several GCMs
+        for gcm in GCMs
+            futureclim = Projection(ssp, gcm)
+            @info ssp, "$(range_begin) → $(range_end)", gcm
+            gcmscore = _predict(sdm, QC, baseline_proba, provider, Projection(ssp, gcm), timespan; resolution=10.0, bbox...)
+            push!(scores, gcmscore)
+        end
+        # Average the predictions
+        score = mosaic(mean, scores)
+        range = score .>= threshold(sdm)
+        sname = joinpath("rasters", fname * "_" * "$(ssp)_$(range_begin)-$(range_end).tif")
+        SimpleSDMLayers.save(sname, SDMLayer{Float64}[score, range])
     end
 end
