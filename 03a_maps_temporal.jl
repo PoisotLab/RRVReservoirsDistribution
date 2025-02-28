@@ -2,17 +2,7 @@ using CairoMakie
 using Statistics
 using SpeciesDistributionToolkit
 
-set_theme!()
-CairoMakie.activate!(; type = "png")
-update_theme!(;
-    backgroundcolor = :transparent,
-    fontsize = 12,
-    Figure = (; backgroundcolor = :transparent),
-    Axis = (
-        backgroundcolor = :transparent,
-    ),
-    CairoMakie = (; px_per_unit = 6),
-)
+include("S1_theme.jl")
 
 QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
 

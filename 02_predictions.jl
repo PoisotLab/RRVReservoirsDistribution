@@ -3,7 +3,6 @@ using CairoMakie
 
 include("S1_theme.jl")
 
-
 taxname = "Mephitis mephitis"
 if ~isempty(ARGS)
     taxname = join(ARGS[1:2], " ")
@@ -89,7 +88,7 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         range_txt = "$(range_begin)-$(range_end)"
         @info range_txt
 
-        qcfuture = [SDMLayer(provider, futureclim, timespan=tsp; layer=i, resolution=0.5, bbox...) for i in eachindex(layers(provider))]
+        qcfuture = [SDMLayer(provider, futureclim, timespan=tsp; layer=i, resolution=2.5, bbox...) for i in eachindex(layers(provider))]
         qcfuture = [interpolate(qcf, first(envirovars)) for qcf in qcfuture] # Force compatibility
         mask!(qcfuture, QC)
         local proba = predict(sdm, qcfuture; threshold=false)

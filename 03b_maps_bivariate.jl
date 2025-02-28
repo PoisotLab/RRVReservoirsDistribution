@@ -2,22 +2,12 @@ using CairoMakie
 using Statistics
 using SpeciesDistributionToolkit
 
-set_theme!()
-CairoMakie.activate!(; type = "png")
-update_theme!(;
-    backgroundcolor = :transparent,
-    fontsize = 12,
-    Figure = (; backgroundcolor = :transparent),
-    Axis = (
-        backgroundcolor = :transparent,
-    ),
-    CairoMakie = (; px_per_unit = 6),
-)
+include("S1_theme.jl")
 
 QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
 
 # Palette functions
-include("multivariate-palettes.jl")
+include("S2_multivariate_palettes.jl")
 
 scenarios = ["SSP126", "SSP245", "SSP370", "SSP585"]
 timeframes = ["2021-2040", "2041-2060", "2061-2080", "2081-2100"]
@@ -41,7 +31,7 @@ for scenario in scenarios, timeframe in timeframes
     end
 
     # Prepare the bivariate map
-    nbins = 3
+    nbins = 50
 
     rbiv = ((x) -> round(Int64, x * (nbins-1)) + 1).(raccoon)
     sbiv = ((x) -> round(Int64, x * (nbins-1)) + 1).(skunk)

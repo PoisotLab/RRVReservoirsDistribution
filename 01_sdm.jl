@@ -37,7 +37,7 @@ SDeMo.writesdm("models/$(replace(taxname, " " => "_")).json", sdm)
 @info "Report on cross-validation"
 cv = crossvalidate(sdm, folds)
 
-measures = [mcc, ppv, npv, tpr, fpr, tnr, fnr, accuracy, trueskill, balancedaccuracy, markedness, plr, nlr]
+measures = [mcc, ppv, npv, trueskill, markedness, plr, nlr]
 M = permutedims([measure(c) for measure in measures, c in cv])
 pt = pretty_table(M; header = measures)
 open("data/$(replace(taxname, " " => "_")).crossvalidation", "w") do f
