@@ -4,6 +4,8 @@ import DelimitedFiles
 using PrettyTables
 import CSV
 
+include("S1_theme.jl")
+
 taxname = "Mephitis mephitis"
 if ~isempty(ARGS)
     taxname = join(ARGS[1:2], " ")
@@ -18,9 +20,9 @@ sdm = SDM(ZScore, Logistic, 𝐗, 𝐲)
 folds = kfold(sdm)
 
 # Set some better training parameters
-sdm.classifier.verbose = false
-sdm.classifier.η = 1e-3
-sdm.classifier.epochs = 5000
+classifier(sdm).verbose = false
+classifier(sdm).η = 1e-3
+classifier(sdm).epochs = 5000
 
 @info "Select variables"
 forwardselection!(sdm, folds; verbose=true)
@@ -29,75 +31,39 @@ forwardselection!(sdm, folds; verbose=true)
 DelimitedFiles.writedlm("data/$(replace(taxname, " " => "_")).params", variables(sdm))
 DelimitedFiles.writedlm("data/$(replace(taxname, " " => "_")).threshold", threshold(sdm))
 
+@info "Save the trained model"
+SDeMo.writesdm("models/$(replace(taxname, " " => "_")).json", sdm)
+
 @info "Report on cross-validation"
 cv = crossvalidate(sdm, folds)
-@info "MCC val.", mcc(cv.validation)
-@info "MCC trn.", mcc(cv.training)
-@info "PPV val.", ppv(cv.validation)
-@info "PPV trn.", ppv(cv.training)
-@info "NPV val.", npv(cv.validation)
-@info "NPV trn.", npv(cv.training)
 
-@info "Loading bioclim data for prediction"
-provider = RasterData(WorldClim2, BioClim)
-QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
-bbox = SpeciesDistributionToolkit.boundingbox(QC; padding=0.0)
-envirovars = [SDMLayer(provider; layer=i, resolution=0.5, bbox...) for i in eachindex(layers(provider))]
-mask!(envirovars, QC)
+measures = [mcc, ppv, npv, tpr, fpr, tnr, fnr, accuracy, trueskill, balancedaccuracy, markedness, plr, nlr]
+M = permutedims([measure(c) for measure in measures, c in cv])
+pt = pretty_table(M; header = measures)
+open("data/$(replace(taxname, " " => "_")).crossvalidation", "w") do f
+    pretty_table(f, M, header=measures)
+end
 
-@info "Baseline prediction"
-predict(sdm, envirovars; threshold=false) |> heatmap
-predict(sdm, envirovars; threshold=true) |> heatmap
+@info "Learning curves"
+τ = threshold(sdm)
+thrs = LinRange(0.0, 1.0, 90)
+C = zeros(ConfusionMatrix, length(thrs))
+for (i, thr) in enumerate(thrs)
+    threshold!(sdm, thr)
+    C[i] =  ConfusionMatrix(predict(sdm), labels(sdm))
+end
 
-@info "Prepare to save stuff"
-fname = replace(taxname, " " => "_")
-
-@info "Plot the partial responses"
-lnames = layers(provider)
-ldescr = layerdescriptions(provider)
-
-for v in variables(sdm)
-    @info ldescr[lnames[v]]
-    fpath = joinpath("figures", fname * "_" * "partialresponse_$(lnames[v]).png")
-    f = Figure(; size=(600, 600))
-    ax = Axis(f[1, 1], xlabel=ldescr[lnames[v]], ylabel="Score for $(taxname)")
-    for i in 1:100
-        lines!(ax, partialresponse(sdm, v; inflated=true, threshold=false)..., color=:grey, alpha=0.4)
-    end
-    lines!(ax, partialresponse(sdm, v; threshold=false)..., color=:black, linewidth=2)
+f = Figure(; size=(900, 300))
+ax1 = Axis(f[1, 1]; aspect = 1, xlabel = "Threshold", ylabel = "MCC")
+lines!(ax1, thrs, mcc.(C))
+ax2 = Axis(f[1, 2]; aspect = 1, xlabel = "Precision", ylabel = "Recall")
+lines!(ax2, SDeMo.precision.(C), SDeMo.recall.(C))
+ax3 = Axis(f[1, 3]; aspect = 1, xlabel = "TPR", ylabel = "FPR")
+lines!(ax3, fpr.(C), tpr.(C))
+for ax in [ax1, ax2, ax3]
+    xlims!(ax, 0, 1)
+    ylims!(ax, 0, 1)
     tightlimits!(ax)
-    CairoMakie.save(fpath, f)
 end
-
-@info "Shapley values"
-S = explain(sdm, envirovars; threshold=false)
-
-@info "Save the Shapley values"
-sname = joinpath("rasters", fname * "_" * "shapley.tif")
-SimpleSDMLayers.save(sname, S)
-
-@info "Save the range"
-sname = joinpath("rasters", fname * "_" * "historical.tif")
-proba = predict(sdm, envirovars; threshold=false)
-range = predict(sdm, envirovars; threshold=true)
-SimpleSDMLayers.save(sname, SDMLayer{Float64}[proba, range])
-
-@info "Forecast"
-for ssp in [SSP126, SSP245, SSP370, SSP585]
-    futureclim = Projection(ssp, CanESM5)
-    @info ssp
-    for tsp in SimpleSDMDatasets.timespans(provider, futureclim)
-        range_begin = tsp.first.value
-        range_end = tsp.second.value
-        range_txt = "$(range_begin)-$(range_end)"
-        @info range_txt
-
-        qcfuture = [SDMLayer(provider, futureclim, timespan=tsp; layer=i, resolution=0.5, bbox...) for i in eachindex(layers(provider))]
-        qcfuture = [interpolate(qcf, first(envirovars)) for qcf in qcfuture] # Force compatibility
-        mask!(qcfuture, QC)
-        local proba = predict(sdm, qcfuture; threshold=false)
-        local range = predict(sdm, qcfuture; threshold=true)
-        sname = joinpath("rasters", fname * "_" * "$(ssp)_$(range_txt).tif")
-        SimpleSDMLayers.save(sname, SDMLayer{Float64}[proba, range])
-    end
-end
+current_figure()
+CairoMakie.save("figures/$(replace(taxname, " " => "_"))-crossvalidation.png", current_figure())
