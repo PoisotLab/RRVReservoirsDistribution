@@ -42,7 +42,7 @@ cv = crossvalidate(sdm, folds)
 provider = RasterData(WorldClim2, BioClim)
 QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
 bbox = SpeciesDistributionToolkit.boundingbox(QC; padding=0.0)
-envirovars = [SDMLayer(provider; layer=i, resolution=2.5, bbox...) for i in eachindex(layers(provider))]
+envirovars = [SDMLayer(provider; layer=i, resolution=0.5, bbox...) for i in eachindex(layers(provider))]
 mask!(envirovars, QC)
 
 @info "Baseline prediction"
@@ -92,7 +92,7 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         range_txt = "$(range_begin)-$(range_end)"
         @info range_txt
 
-        qcfuture = [SDMLayer(provider, futureclim, timespan=tsp; layer=i, resolution=2.5, bbox...) for i in eachindex(layers(provider))]
+        qcfuture = [SDMLayer(provider, futureclim, timespan=tsp; layer=i, resolution=0.5, bbox...) for i in eachindex(layers(provider))]
         qcfuture = [interpolate(qcf, first(envirovars)) for qcf in qcfuture] # Force compatibility
         mask!(qcfuture, QC)
         local proba = predict(sdm, qcfuture; threshold=false)
