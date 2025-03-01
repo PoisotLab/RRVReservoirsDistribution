@@ -11,10 +11,10 @@ end
 
 @info "Loading the SDM"
 sdm = SDeMo.loadsdm("models/$(replace(taxname, " " => "_")).json")
-classifier(sdm).verbose = false
-classifier(sdm).η = 1e-3
-classifier(sdm).epochs = 5000
-train!(sdm)
+#classifier(sdm).verbose = false
+#classifier(sdm).η = 1e-3
+#classifier(sdm).epochs = 5000
+#train!(sdm)
 
 @info "Loading bioclim data for prediction"
 provider = RasterData(WorldClim2, BioClim)
@@ -36,7 +36,7 @@ ldescr = layerdescriptions(provider)
 
 for v in variables(sdm)
     @info ldescr[lnames[v]]
-    fpath = joinpath("figures", fname * "_" * "partialresponse_$(lnames[v]).png")
+    fpath = joinpath("figures", "02_predictions", fname * "_" * "partialresponse_$(lnames[v]).png")
     f = Figure(; size=(600, 600))
     ax = Axis(f[1, 1], xlabel=ldescr[lnames[v]], ylabel="Score for $(taxname)")
     for i in 1:100
@@ -45,7 +45,7 @@ for v in variables(sdm)
     lines!(ax, partialresponse(sdm, v; threshold=false)..., color=:black, linewidth=2)
     tightlimits!(ax)
     CairoMakie.save(fpath, f)
-    fpath = joinpath("figures", fname * "_" * "shapley_$(lnames[v]).png")
+    fpath = joinpath("figures", "02_predictions", fname * "_" * "shapley_$(lnames[v]).png")
     f = Figure(; size=(600, 600))
     ax = Axis(f[1, 1], xlabel=ldescr[lnames[v]], ylabel="Score for $(taxname)")
     scatter!(ax, features(sdm, v), explain(sdm, v; threshold=false))
@@ -54,7 +54,7 @@ for v in variables(sdm)
 end
 
 @info "Plot the class assignment"
-fpath = joinpath("figures", fname * "_" * "outputs.png")
+fpath = joinpath("figures", "02_predictions", fname * "_" * "outputs.png")
 f = Figure(; size=(900, 450))
 ax = Axis(f[1, 1], xlabel="Prediction", ylabel="Class")
 boxplot!(ax, labels(sdm), predict(sdm; threshold=false), orientation=:horizontal, outliercolor=:black, color=:white, strokecolor=:black, strokewidth=2)

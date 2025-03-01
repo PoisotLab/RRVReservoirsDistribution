@@ -3,6 +3,13 @@ using CairoMakie
 import DelimitedFiles
 import CSV
 
+# Create the folders if they don't exist
+for folder in ["models", "data", "rasters", "figures", "paperfigures"]
+    if !ispath(folder)
+        mkpath(folder)
+    end
+end
+
 taxname = "Mephitis mephitis"
 if ~isempty(ARGS)
     taxname = join(ARGS[1:2], " ")
@@ -27,7 +34,7 @@ presencelayer = mask(envirovars[1], occ)
 @info "Generating pseudo-absences mask"
 event_dist = pseudoabsencemask(DistanceToEvent, presencelayer)
 pa_mask = copy(event_dist)
-nodata!(pa_mask, x -> x <= 10.0)
+nodata!(pa_mask, x -> x <= 20.0)
 nodata!(pa_mask, x -> x >= 500.0)
 
 @info "Sampling pseudo-absences"

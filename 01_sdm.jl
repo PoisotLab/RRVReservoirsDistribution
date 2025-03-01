@@ -16,13 +16,13 @@ end
 𝐲 = vec(DelimitedFiles.readdlm("data/$(replace(taxname, " " => "_")).y.dat", Bool))
 
 @info "Train the SDM for all the known data"
-sdm = SDM(ZScore, Logistic, 𝐗, 𝐲)
+sdm = SDM(ZScore, NaiveBayes, 𝐗, 𝐲)
 folds = kfold(sdm)
 
 # Set some better training parameters
-classifier(sdm).verbose = false
-classifier(sdm).η = 1e-3
-classifier(sdm).epochs = 5000
+# classifier(sdm).verbose = false
+# classifier(sdm).η = 1e-3
+# classifier(sdm).epochs = 5000
 
 @info "Select variables"
 forwardselection!(sdm, folds; verbose=true)
@@ -52,6 +52,7 @@ for (i, thr) in enumerate(thrs)
     threshold!(sdm, thr)
     C[i] =  ConfusionMatrix(predict(sdm), labels(sdm))
 end
+threshold!(sdm, τ)
 
 f = Figure(; size=(900, 300))
 ax1 = Axis(f[1, 1]; aspect = 1, xlabel = "Threshold", ylabel = "MCC")
@@ -66,4 +67,4 @@ for ax in [ax1, ax2, ax3]
     tightlimits!(ax)
 end
 current_figure()
-CairoMakie.save("figures/$(replace(taxname, " " => "_"))-crossvalidation.png", current_figure())
+CairoMakie.save("figures/01_sdm/$(replace(taxname, " " => "_"))-crossvalidation.png", current_figure())
