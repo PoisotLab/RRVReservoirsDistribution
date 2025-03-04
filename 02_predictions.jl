@@ -17,10 +17,10 @@ sdm = SDeMo.loadsdm("models/$(replace(taxname, " " => "_")).json")
 #train!(sdm)
 
 @info "Loading bioclim data for prediction"
-provider = RasterData(CHELSA2, BioClim)
+provider = RasterData(WorldClim2, BioClim)
 QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
 bbox = SpeciesDistributionToolkit.boundingbox(QC; padding=0.0)
-envirovars = [SDMLayer(provider; layer=i, bbox...) for i in eachindex(layers(provider))]
+envirovars = SDMLayer{Float32}[SDMLayer(provider; layer=i, bbox...) for i in eachindex(layers(provider))]
 mask!(envirovars, QC)
 
 @info "Baseline prediction"

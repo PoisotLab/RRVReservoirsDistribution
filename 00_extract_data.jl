@@ -25,12 +25,7 @@ occ = Occurrences([Occurrence(r.species, true, (r.decimalLongitude, r.decimalLat
 bbox = SpeciesDistributionToolkit.boundingbox(occ; padding=2.0)
 
 @info "Loading bioclim data for training"
-provider = RasterData(CHELSA2, BioClim)
-
-@info "Get a mask for the countries we want"
-template = SDMLayer(provider; bbox...)
-
-@info "Read"
+provider = RasterData(WorldClim2, BioClim)
 envirovars = [SDMLayer(provider; layer=i, bbox...) for i in eachindex(layers(provider))]
 
 @info "Thinning the occurrences to the grid"
