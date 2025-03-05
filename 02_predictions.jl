@@ -1,4 +1,5 @@
 using SpeciesDistributionToolkit
+using Statistics
 using CairoMakie
 
 include("S1_theme.jl")
@@ -16,7 +17,7 @@ sdm = SDeMo.loadsdm("models/$(replace(taxname, " " => "_")).json")
 provider = RasterData(WorldClim2, BioClim)
 QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
 bbox = SpeciesDistributionToolkit.boundingbox(QC; padding=0.0)
-envirovars = SDMLayer{Float32}[SDMLayer(provider; layer=i, resolution=2.5, bbox...) for i in eachindex(layers(provider))]
+envirovars = SDMLayer{Float32}[SDMLayer(provider; layer=i, bbox...) for i in eachindex(layers(provider))]
 mask!(envirovars, QC)
 
 @info "Baseline prediction"
@@ -75,7 +76,7 @@ baseline_range = predict(sdm, envirovars; threshold=true)
 SimpleSDMLayers.save(sname, SDMLayer{Float64}[baseline_proba, baseline_range])
 
 SSPs = [SSP126, SSP245, SSP370, SSP585]
-GCMs = [MIROC6, ACCESS_CM2, CanESM5, EC_Earth3_Veg, GFDL_ESM4, MRI_ESM2_0]
+GCMs = [MIROC6, ACCESS_CM2, CanESM5, EC_Earth3_Veg, MRI_ESM2_0, IPSL_CM6A_LR, CMCC_ESM2, CNRM_ESM2_1, BCC_CSM2_MR, UKESM1_0_LL]
 timespans = SimpleSDMDatasets.timespans(provider, Projection(SSPs[1], GCMs[1]))
 
 function _predict(sdm, poly, template, provider, future, timespan; kwargs...)
@@ -95,7 +96,7 @@ for ssp in SSPs
         for gcm in GCMs
             futureclim = Projection(ssp, gcm)
             @info ssp, "$(range_begin) → $(range_end)", gcm
-            gcmscore = _predict(sdm, QC, baseline_proba, provider, Projection(ssp, gcm), timespan; resolution=2.5, bbox...)
+            gcmscore = _predict(sdm, QC, baseline_proba, provider, Projection(ssp, gcm), timespan; bbox...)
             push!(scores, gcmscore)
         end
         # Average the predictions
