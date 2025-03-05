@@ -33,7 +33,7 @@ for (i, v) in enumerate(v)
     hidedecorations!(ax)
     hidespines!(ax)
     current_figure()
-    CairoMakie.save("paperfigures/$(replace(taxname, " " => "_"))_shapmap_BIO$(v).png", current_figure())
+    CairoMakie.save("figures/03c_shapley/$(replace(taxname, " " => "_"))_shapmap_BIO$(v).png", current_figure())
 end
 
 mostimp = mosaic(argmax, map(x -> abs.(x), S))
@@ -77,4 +77,4 @@ Legend(
     vertical=false
 )
 current_figure()
-CairoMakie.save("paperfigures/$(replace(taxname, " " => "_"))_shapmap_mostimp.png", current_figure())
+CairoMakie.save("figures/03c_shapley/$(replace(taxname, " " => "_"))_shapmap_mostimp.png", current_figure())

@@ -16,13 +16,15 @@ end
 𝐲 = vec(DelimitedFiles.readdlm("data/$(replace(taxname, " " => "_")).y.dat", Bool))
 
 @info "Train the SDM for all the known data"
-sdm = SDM(ZScore, NaiveBayes, 𝐗, 𝐲)
+sdm = SDM(ZScore, Logistic, 𝐗, 𝐲)
 folds = kfold(sdm)
 
-# Set some better training parameters
-# classifier(sdm).verbose = false
-# classifier(sdm).η = 1e-3
-# classifier(sdm).epochs = 5000
+# Set some better training parameters to check the number of epochs
+hyperparameters!(classifier(sdm), :verbose, true)
+hyperparameters!(classifier(sdm), :η, 1e-3)
+hyperparameters!(classifier(sdm), :epochs, 10_000)
+hyperparameters!(classifier(sdm), :verbose, false)
+#train!(sdm; training=folds[2][1])
 
 @info "Select variables"
 forwardselection!(sdm, folds; verbose=true)

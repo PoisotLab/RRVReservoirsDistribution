@@ -11,16 +11,12 @@ end
 
 @info "Loading the SDM"
 sdm = SDeMo.loadsdm("models/$(replace(taxname, " " => "_")).json")
-#classifier(sdm).verbose = false
-#classifier(sdm).η = 1e-3
-#classifier(sdm).epochs = 5000
-#train!(sdm)
 
 @info "Loading bioclim data for prediction"
 provider = RasterData(WorldClim2, BioClim)
 QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
 bbox = SpeciesDistributionToolkit.boundingbox(QC; padding=0.0)
-envirovars = SDMLayer{Float32}[SDMLayer(provider; layer=i, bbox...) for i in eachindex(layers(provider))]
+envirovars = SDMLayer{Float32}[SDMLayer(provider; layer=i, resolution=2.5, bbox...) for i in eachindex(layers(provider))]
 mask!(envirovars, QC)
 
 @info "Baseline prediction"
@@ -79,7 +75,7 @@ baseline_range = predict(sdm, envirovars; threshold=true)
 SimpleSDMLayers.save(sname, SDMLayer{Float64}[baseline_proba, baseline_range])
 
 SSPs = [SSP126, SSP245, SSP370, SSP585]
-GCMs = [INM_CM5_0, CanESM5, MRI_ESM2_0, MIROC_ES2L, ACCESS_CM2]
+GCMs = [MIROC6, ACCESS_CM2, CanESM5, EC_Earth3_Veg, GFDL_ESM4, MRI_ESM2_0]
 timespans = SimpleSDMDatasets.timespans(provider, Projection(SSPs[1], GCMs[1]))
 
 function _predict(sdm, poly, template, provider, future, timespan; kwargs...)
@@ -90,7 +86,7 @@ function _predict(sdm, poly, template, provider, future, timespan; kwargs...)
 end
 
 @info "Forecast - GCM averaging"
-for ssp in [SSP126, SSP245, SSP370, SSP585]
+for ssp in SSPs
     for timespan in timespans
         range_begin = timespan.first.value
         range_end = timespan.second.value
@@ -99,7 +95,7 @@ for ssp in [SSP126, SSP245, SSP370, SSP585]
         for gcm in GCMs
             futureclim = Projection(ssp, gcm)
             @info ssp, "$(range_begin) → $(range_end)", gcm
-            gcmscore = _predict(sdm, QC, baseline_proba, provider, Projection(ssp, gcm), timespan; resolution=10.0, bbox...)
+            gcmscore = _predict(sdm, QC, baseline_proba, provider, Projection(ssp, gcm), timespan; resolution=2.5, bbox...)
             push!(scores, gcmscore)
         end
         # Average the predictions
