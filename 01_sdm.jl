@@ -17,13 +17,13 @@ end
 
 @info "Train the SDM for all the known data"
 sdm = SDM(ZScore, Logistic, 𝐗, 𝐲)
-folds = kfold(sdm)
+folds = [holdout(sdm)]
 
 # Set some better training parameters to check the number of epochs
-hyperparameters!(classifier(sdm), :verbose, true)
+# hyperparameters!(classifier(sdm), :verbose, true)
 hyperparameters!(classifier(sdm), :η, 1e-3)
 hyperparameters!(classifier(sdm), :epochs, 10_000)
-hyperparameters!(classifier(sdm), :verbose, false)
+# hyperparameters!(classifier(sdm), :verbose, false)
 #train!(sdm; training=folds[2][1])
 
 @info "Select variables"

@@ -17,7 +17,7 @@ sdm = SDeMo.loadsdm("models/$(replace(taxname, " " => "_")).json")
 provider = RasterData(WorldClim2, BioClim)
 QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
 bbox = SpeciesDistributionToolkit.boundingbox(QC; padding=0.0)
-envirovars = SDMLayer{Float32}[SDMLayer(provider; layer=i, bbox...) for i in eachindex(layers(provider))]
+envirovars = SDMLayer{Float32}[SDMLayer(provider; layer=i, resolution=2.5, bbox...) for i in eachindex(layers(provider))]
 mask!(envirovars, QC)
 
 @info "Baseline prediction"
@@ -96,7 +96,7 @@ for ssp in SSPs
         for gcm in GCMs
             futureclim = Projection(ssp, gcm)
             @info ssp, "$(range_begin) → $(range_end)", gcm
-            gcmscore = _predict(sdm, QC, baseline_proba, provider, Projection(ssp, gcm), timespan; bbox...)
+            gcmscore = _predict(sdm, QC, baseline_proba, provider, Projection(ssp, gcm), timespan; resolution=2.5, bbox...)
             push!(scores, gcmscore)
         end
         # Average the predictions

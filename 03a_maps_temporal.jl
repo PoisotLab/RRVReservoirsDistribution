@@ -65,5 +65,5 @@ for scenario in scenarios
     tightlimits!(ax_inset)
     current_figure()
 
-    CairoMakie.save("paperfigures/arrival_date_both_$(scenario).png", current_figure())
+    CairoMakie.save("figures/03a_maps_temporal/arrival_date_both_$(scenario).png", current_figure())
 end

@@ -74,5 +74,5 @@ for scenario in scenarios, timeframe in timeframes
     tightlimits!(ax_inset)
     current_figure()
     
-    CairoMakie.save("paperfigures/bivariate_suitability_$(scenario)_$(timeframe).png", current_figure())
+    CairoMakie.save("figures/03b_maps_bivariate/bivariate_suitability_$(scenario)_$(timeframe).png", current_figure())
 end
