@@ -76,7 +76,7 @@ baseline_range = predict(sdm, envirovars; threshold=true)
 SimpleSDMLayers.save(sname, SDMLayer{Float64}[baseline_proba, baseline_range])
 
 SSPs = [SSP126, SSP245, SSP370, SSP585]
-GCMs = [MIROC6, ACCESS_CM2, CanESM5, EC_Earth3_Veg, MRI_ESM2_0, IPSL_CM6A_LR, CMCC_ESM2, CNRM_ESM2_1, BCC_CSM2_MR, UKESM1_0_LL]
+GCMs = [UKESM1_0_LL, MIROC6, ACCESS_CM2, CanESM5, EC_Earth3_Veg, MRI_ESM2_0, IPSL_CM6A_LR, CMCC_ESM2, CNRM_ESM2_1]
 timespans = SimpleSDMDatasets.timespans(provider, Projection(SSPs[1], GCMs[1]))
 
 function _predict(sdm, poly, template, provider, future, timespan; kwargs...)
