@@ -1,2 +1,6 @@
-julia --project 01_sdm.jl Procyon lotor
-julia --project 01_sdm.jl Mephitis mephitis
+species=("Procyon lotor" "Mephitis mephitis")
+
+for sp in "${species[@]}"; do
+    julia --project 01_sdm.jl $sp
+    julia --project 02_predictions.jl $sp
+done

@@ -8,7 +8,14 @@ taxname = "Mephitis mephitis"
 if ~isempty(ARGS)
     taxname = join(ARGS[1:2], " ")
 end
+
 @info "Running for $(taxname)"
+taxcode = replace(taxname, " " => "_")
+fslug = replace(last(splitpath(@__FILE__)), ".jl" => "")
+figure_path = joinpath("figures", fslug, taxcode)
+if !ispath(figure_path)
+    mkpath(figure_path)
+end
 
 @info "Loading the SDM"
 sdm = SDeMo.loadsdm("models/$(replace(taxname, " " => "_")).json")
@@ -24,16 +31,14 @@ mask!(envirovars, QC)
 predict(sdm, envirovars; threshold=false) |> heatmap
 predict(sdm, envirovars; threshold=true) |> heatmap
 
-@info "Prepare to save stuff"
-fname = replace(taxname, " " => "_")
-
 @info "Plot the partial responses"
 lnames = layers(provider)
 ldescr = layerdescriptions(provider)
 
 for v in variables(sdm)
     @info ldescr[lnames[v]]
-    fpath = joinpath("figures", "02_predictions", fname * "_" * "partialresponse_$(lnames[v]).png")
+
+    fpath = joinpath(figure_path, taxcode * "_" * "partialresponse_$(lnames[v]).png")
     f = Figure(; size=(600, 600))
     ax = Axis(f[1, 1], xlabel=ldescr[lnames[v]], ylabel="Score for $(taxname)")
     for i in 1:100
@@ -42,7 +47,8 @@ for v in variables(sdm)
     lines!(ax, partialresponse(sdm, v; threshold=false)..., color=:black, linewidth=2)
     tightlimits!(ax)
     CairoMakie.save(fpath, f)
-    fpath = joinpath("figures", "02_predictions", fname * "_" * "shapley_$(lnames[v]).png")
+
+    fpath = joinpath(figure_path, taxcode * "_" * "shapley_$(lnames[v]).png")
     f = Figure(; size=(600, 600))
     ax = Axis(f[1, 1], xlabel=ldescr[lnames[v]], ylabel="Score for $(taxname)")
     scatter!(ax, features(sdm, v), explain(sdm, v; threshold=false))
@@ -51,26 +57,29 @@ for v in variables(sdm)
 end
 
 @info "Plot the class assignment"
-fpath = joinpath("figures", "02_predictions", fname * "_" * "outputs.png")
 f = Figure(; size=(900, 450))
-ax = Axis(f[1, 1], xlabel="Prediction", ylabel="Class")
-boxplot!(ax, labels(sdm), predict(sdm; threshold=false), orientation=:horizontal, outliercolor=:black, color=:white, strokecolor=:black, strokewidth=2)
-ylims!(ax, -0.5, 1.5)
+ax = Axis(f[1, 1], xlabel="Prediction", ylabel="Class", yticks=([0, 1], ["Absent", "Present"]))
+col = Makie.wong_colors()[[i ? 1 : 2 for i in labels(sdm)]]
+rainclouds!(ax, labels(sdm), predict(sdm; threshold=false), clouds=hist, orientation=:horizontal, color=col)
 xlims!(ax, 0, 1)
 vlines!([threshold(sdm)], color=:red)
 tightlimits!(ax)
+hidespines!(ax, :l, :r, :t)
 current_figure()
-CairoMakie.save(fpath, f)
+CairoMakie.save(joinpath(figure_path, taxcode * "_" * "outputs.png"), f)
 
 @info "Shapley values"
 S = explain(sdm, envirovars; threshold=false)
 
 @info "Save the Shapley values"
-sname = joinpath("rasters", fname * "_" * "shapley.tif")
+sname = joinpath("rasters", fslug, taxcode * "_" * "shapley.tif")
+if !ispath(dirname(sname))
+    mkpath(dirname(sname))
+end
 SimpleSDMLayers.save(sname, S)
 
 @info "Save the range"
-sname = joinpath("rasters", fname * "_" * "historical.tif")
+sname = joinpath("rasters", fslug, "$(taxcode).tif")
 baseline_proba = predict(sdm, envirovars; threshold=false)
 baseline_range = predict(sdm, envirovars; threshold=true)
 SimpleSDMLayers.save(sname, SDMLayer{Float64}[baseline_proba, baseline_range])
@@ -80,7 +89,7 @@ GCMs = [UKESM1_0_LL, MIROC6, ACCESS_CM2, CanESM5, EC_Earth3_Veg, MRI_ESM2_0, IPS
 timespans = SimpleSDMDatasets.timespans(provider, Projection(SSPs[1], GCMs[1]))
 
 function _predict(sdm, poly, template, provider, future, timespan; kwargs...)
-    future = [SDMLayer(provider, future, timespan=timespan; layer=i, kwargs...) for i in eachindex(layers(provider))]
+    future = [SDMLayer(provider, future, timespan=timespan; resolution=2.5, layer=i, kwargs...) for i in eachindex(layers(provider))]
     future = [interpolate(fl, template) for fl in future]
     mask!(future, poly)
     return predict(sdm, future; threshold=false)
@@ -97,12 +106,24 @@ for ssp in SSPs
             futureclim = Projection(ssp, gcm)
             @info ssp, "$(range_begin) → $(range_end)", gcm
             gcmscore = _predict(sdm, QC, baseline_proba, provider, Projection(ssp, gcm), timespan; resolution=2.5, bbox...)
+            future_fpath = joinpath("rasters", fslug, ssp, "$(range_begin)-$(range_end)")
+            replace!(future_fpath, "figures" => "rasters")
+            if !ispath(future_fpath)
+                mkpath(future_fpath)
+            end
+            sname = joinpath(future_fpath, "$(taxcode)_$(gcm).tif")
             push!(scores, gcmscore)
+        end
+        # Save the projections for each GCM
+        for i in eachindex(scores)
+
+            SimpleSDMLayers.save(sname, scores[i])
         end
         # Average the predictions
         score = mosaic(mean, scores)
         range = score .>= threshold(sdm)
-        sname = joinpath("rasters", fname * "_" * "$(ssp)_$(range_begin)-$(range_end).tif")
+        future_fpath = joinpath("rasters", fslug, ssp, "$(range_begin)-$(range_end)")
+        sname = joinpath(future_fpath, "$(taxcode).tif")
         SimpleSDMLayers.save(sname, SDMLayer{Float64}[score, range])
     end
 end
