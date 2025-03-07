@@ -114,11 +114,6 @@ for ssp in SSPs
             sname = joinpath(future_fpath, "$(taxcode)_$(gcm).tif")
             push!(scores, gcmscore)
         end
-        # Save the projections for each GCM
-        for i in eachindex(scores)
-
-            SimpleSDMLayers.save(sname, scores[i])
-        end
         # Average the predictions
         score = mosaic(mean, scores)
         range = score .>= threshold(sdm)
