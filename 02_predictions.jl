@@ -106,8 +106,8 @@ for ssp in SSPs
             futureclim = Projection(ssp, gcm)
             @info ssp, "$(range_begin) → $(range_end)", gcm
             gcmscore = _predict(sdm, QC, baseline_proba, provider, Projection(ssp, gcm), timespan; resolution=2.5, bbox...)
-            future_fpath = joinpath("rasters", fslug, ssp, "$(range_begin)-$(range_end)")
-            replace!(future_fpath, "figures" => "rasters")
+            future_fpath = joinpath("rasters", fslug, "$(ssp)", "$(range_begin)-$(range_end)")
+            future_fpath = replace(future_fpath, "figures" => "rasters")
             if !ispath(future_fpath)
                 mkpath(future_fpath)
             end
@@ -117,8 +117,7 @@ for ssp in SSPs
         # Average the predictions
         score = mosaic(mean, scores)
         range = score .>= threshold(sdm)
-        future_fpath = joinpath("rasters", fslug, ssp, "$(range_begin)-$(range_end)")
-        sname = joinpath(future_fpath, "$(taxcode).tif")
-        SimpleSDMLayers.save(sname, SDMLayer{Float64}[score, range])
+        future_fpath = joinpath("rasters", fslug, "$(ssp)", "$(range_begin)-$(range_end)")
+        SimpleSDMLayers.save(joinpath(future_fpath, "$(taxcode).tif"), SDMLayer{Float64}[score, range])
     end
 end
