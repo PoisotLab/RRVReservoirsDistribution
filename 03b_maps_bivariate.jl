@@ -9,7 +9,7 @@ QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
 # Palette functions
 include("S2_multivariate_palettes.jl")
 
-scenarios = ["SSP126"]#, "SSP245", "SSP370", "SSP585"]
+scenarios = ["SSP126", "SSP245", "SSP370", "SSP585"]
 timeframes = ["2021-2040", "2041-2060", "2061-2080", "2081-2100"]
 
 for scenario in scenarios, timeframe in timeframes

@@ -9,15 +9,15 @@ QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
 # Load the current maps
 
 function get_baseline()
-    raccoon = SDMLayer("rasters/Procyon_lotor_historical.tif", bandnumber=2) .== 1.0
-    skunk = SDMLayer("rasters/Mephitis_mephitis_historical.tif", bandnumber=2) .== 1.0
-    return raccoon | skunk
+    raccoon = SDMLayer("rasters/02_predictions/Procyon_lotor.tif", bandnumber=2)
+    skunk = SDMLayer("rasters/02_predictions/Mephitis_mephitis.tif", bandnumber=2)
+    return (raccoon + skunk) .> 0
 end
 
 function get_both_sp(scenario, timeframe)
-    raccoon = SDMLayer("rasters/Procyon_lotor_$(scenario)_$(timeframe).tif", bandnumber=2) .== 1.0
-    skunk = SDMLayer("rasters/Mephitis_mephitis_$(scenario)_$(timeframe).tif", bandnumber=2) .== 1.0
-    return raccoon | skunk
+    raccoon = SDMLayer("rasters/02_predictions/$(scenario)/$(timeframe)/Procyon_lotor.tif", bandnumber=2)
+    skunk = SDMLayer("rasters/02_predictions/$(scenario)/$(timeframe)/Mephitis_mephitis.tif", bandnumber=2)
+    return (raccoon + skunk) .> 0
 end
 
 scenarios = ["SSP126", "SSP245", "SSP370", "SSP585"]
