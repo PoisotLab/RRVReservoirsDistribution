@@ -20,7 +20,7 @@ lnames = layers(provider)
 descr = layerdescriptions(provider)
 
 v = Int64[DelimitedFiles.readdlm("data/$(replace(taxname, " " => "_")).params")...]
-S = [SDMLayer("rasters/$(replace(taxname, " " => "_"))_shapley.tif"; bandnumber=i) for i in eachindex(v)]
+S = [SDMLayer("rasters/02_predictions/$(replace(taxname, " " => "_"))_shapley.tif"; bandnumber=i) for i in eachindex(v)]
 
 shapscale(S) = maximum(abs.(quantile(S, [0.05, 0.95]))) .* (-1, 1)
 
@@ -66,10 +66,10 @@ Legend(
     [PolyElement(; color=dcols[i]) for i in 1:length(present)],
     _abbreviator.([descr[lnames[p]] for p in present]);
     orientation=:horizontal,
-    nbanks=5,
+    nbanks=3,
     framevisible=false,
     alignmode=Inside(),
-    width=Relative(0.4),
+    width=Relative(0.6),
     valign=:top,
     halign=:right,
     tellheight=false,
