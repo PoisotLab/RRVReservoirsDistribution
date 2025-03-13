@@ -9,29 +9,32 @@ QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
 # Palette functions
 include("S2_multivariate_palettes.jl")
 
-scenarios = ["SSP126", "SSP245", "SSP370", "SSP585"]
+scenarios = ["SSP126"]#, "SSP245", "SSP370", "SSP585"]
 timeframes = ["2021-2040", "2041-2060", "2061-2080", "2081-2100"]
 
 for scenario in scenarios, timeframe in timeframes
     # Layers
-    raccoon = SDMLayer("rasters/Procyon_lotor_$(scenario)_$(timeframe).tif", bandnumber=1)
-    skunk = SDMLayer("rasters/Mephitis_mephitis_$(scenario)_$(timeframe).tif", bandnumber=1)
-    r_raccoon = SDMLayer("rasters/Procyon_lotor_$(scenario)_$(timeframe).tif", bandnumber=2) .== 1
-    r_skunk = SDMLayer("rasters/Mephitis_mephitis_$(scenario)_$(timeframe).tif", bandnumber=2) .== 1
+    raccoon = SDMLayer("rasters/02_predictions/$(scenario)/$(timeframe)/Procyon_lotor.tif", bandnumber=1)
+    skunk = SDMLayer("rasters/02_predictions/$(scenario)/$(timeframe)/Mephitis_mephitis.tif", bandnumber=1)
+    r_raccoon = SDMLayer("rasters/02_predictions/$(scenario)/$(timeframe)/Procyon_lotor.tif", bandnumber=2) .== 1
+    r_skunk = SDMLayer("rasters/02_predictions/$(scenario)/$(timeframe)/Mephitis_mephitis.tif", bandnumber=2) .== 1
 
     # Out of range!
-    nodata!(r_raccoon, true)
-    for k in keys(r_raccoon)
-        raccoon[k] = 0.0
-    end
-    
-    nodata!(r_skunk, true)
-    for k in keys(r_skunk)
-        skunk[k] = 0.0
+    nodata!(r_raccoon, false)
+    nodata!(r_skunk, false)
+
+    in_range = union(keys(r_raccoon), keys(r_skunk))
+    range_mask = similar(r_raccoon)
+    for k in in_range
+        range_mask[k] = true
+        range_mask.indices[k] = true
     end
 
+    mask!(skunk, range_mask)
+    mask!(raccoon, range_mask)
+
     # Prepare the bivariate map
-    nbins = 50
+    nbins = 10
 
     rbiv = ((x) -> round(Int64, x * (nbins-1)) + 1).(raccoon)
     sbiv = ((x) -> round(Int64, x * (nbins-1)) + 1).(skunk)
@@ -41,15 +44,19 @@ for scenario in scenarios, timeframe in timeframes
     stevens3 = (p0 = colorant"#e8e8e8", p1 = colorant"#6c83b5", p2 = colorant"#73ae80")
     stevens4 = (p0 = colorant"#e8e8e8", p1 = colorant"#c8b35a", p2 = colorant"#9972af")
 
-    colpal = stevens1
+    colpal = stevens3
 
     pal = _get_bivariate_colormap(; n_stops=nbins, colpal...)
-    smpal = _get_bivariate_colormap(; n_stops=3, colpal...)
+    smpal = _get_bivariate_colormap(; n_stops=5, colpal...)
 
     lics = LinearIndices(pal)
-    bivlayer = similar(rbiv)
-    for k in keys(bivlayer)
-        bivlayer[k] = lics[rbiv[k], sbiv[k]]
+    bivlayer = similar(range_mask, Integer)
+    for k in keys(range_mask)
+        try
+            bivlayer[k] = lics[rbiv[k], sbiv[k]]
+        catch
+            bivlayer.indices[k] = false
+        end
     end
 
     f = Figure(; size = (800, 700))
