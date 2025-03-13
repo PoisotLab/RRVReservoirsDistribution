@@ -19,19 +19,12 @@ for scenario in scenarios, timeframe in timeframes
     r_raccoon = SDMLayer("rasters/02_predictions/$(scenario)/$(timeframe)/Procyon_lotor.tif", bandnumber=2) .== 1
     r_skunk = SDMLayer("rasters/02_predictions/$(scenario)/$(timeframe)/Mephitis_mephitis.tif", bandnumber=2) .== 1
 
-    # Out of range!
-    nodata!(r_raccoon, false)
-    nodata!(r_skunk, false)
-
-    in_range = union(keys(r_raccoon), keys(r_skunk))
-    range_mask = similar(r_raccoon)
+    in_range = union(keys(raccoon), keys(skunk))
+    range_mask = similar(raccoon)
     for k in in_range
         range_mask[k] = true
         range_mask.indices[k] = true
     end
-
-    mask!(skunk, range_mask)
-    mask!(raccoon, range_mask)
 
     # Prepare the bivariate map
     nbins = 10
@@ -47,7 +40,7 @@ for scenario in scenarios, timeframe in timeframes
     colpal = stevens3
 
     pal = _get_bivariate_colormap(; n_stops=nbins, colpal...)
-    smpal = _get_bivariate_colormap(; n_stops=5, colpal...)
+    smpal = _get_bivariate_colormap(; n_stops=3, colpal...)
 
     lics = LinearIndices(pal)
     bivlayer = similar(range_mask, Integer)
@@ -59,9 +52,14 @@ for scenario in scenarios, timeframe in timeframes
         end
     end
 
+    # Mask for either species
+    r_either = mosaic(any, [r_raccoon, r_skunk])
+    nodata!(r_either, false)
+
     f = Figure(; size = (800, 700))
     ax = Axis(f[1, 1], aspect=DataAspect())
-    heatmap!(ax, bivlayer, colormap=vec(pal))
+    poly!(ax, QC, strokecolor=:black, color=colpal.p0, strokewidth=1)
+    heatmap!(ax, mask(bivlayer, r_either), colormap=[pal[l] for l in vec(lics)])
     hidedecorations!(ax)
     hidespines!(ax)
     tightlimits!(ax)
@@ -75,7 +73,8 @@ for scenario in scenarios, timeframe in timeframes
         xlabel = "Raccoon",
         ylabel = "Skunk",
     )
-    heatmap!(ax_inset, smpal)
+    heatmap!(ax_inset, 1:3, 1:3, smpal)
+    scatter!(ax_inset, rescale(raccoon, ax_inset.xaxis.attributes.limits.val...), rescale(skunk, ax_inset.yaxis.attributes.limits.val...), color=:black, markersize=1, alpha=0.15)
     hideydecorations!(ax_inset, label=false)
     hidexdecorations!(ax_inset, label=false)
     tightlimits!(ax_inset)
