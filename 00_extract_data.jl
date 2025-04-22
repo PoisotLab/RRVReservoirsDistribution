@@ -16,8 +16,8 @@ if ~isempty(ARGS)
 end
 @info "Running for $(taxname)"
 
-@info "Loading the CSV file"
-records = CSV.File("0022970-241126133413365.csv")
+@info "Loading the occurrences from GBIF file"
+records = GBIF.download("10.15468/dl.ttnmj9")
 records = filter(r -> isequal(taxname)(r.species), records)
 
 @info "Turning records in occurrences"
