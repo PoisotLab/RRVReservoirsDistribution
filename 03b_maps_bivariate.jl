@@ -4,7 +4,7 @@ using SpeciesDistributionToolkit
 
 include("S1_theme.jl")
 
-QC = SpeciesDistributionToolkit.gadm("CAN", "Québec")
+QC = getpolygon(PolygonData(GADM, Countries); country="CAN", level=1)["Québec"]
 
 # Palette functions
 include("S2_multivariate_palettes.jl")
@@ -41,7 +41,7 @@ for scenario in scenarios, timeframe in timeframes
     hidedecorations!(ax)
     hidespines!(ax)
     tightlimits!(ax)
-    Colorbar(f[1, 1], hm, label="NDRI", alignmode=Inside(), width=Relative(0.4), valign=:bottom, halign=:right, tellheight=false, tellwidth=false, vertical=false)
+    Colorbar(f[1, 1], hm, label="Polarization", alignmode=Inside(), width=Relative(0.4), valign=:bottom, halign=:right, tellheight=false, tellwidth=false, vertical=false)
     lines!(ax, QC, color=:black)
     ax_inset = Axis(f[1, 1],
         aspect = 1,
