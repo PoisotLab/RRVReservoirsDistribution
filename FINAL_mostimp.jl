@@ -48,6 +48,7 @@ mIm = partialsortperm(Sm.contrib, 1:3, rev=true)
 # Colors
 Cp = _friendly_palette[1:2:5]
 Cm = _friendly_palette[2:2:6]
+cpal = vcat(Cp, Cm)
 
 # Get some figure action going
 f = Figure(; size=(500, 400))
@@ -74,19 +75,19 @@ for ax in [mm, mp]
 end
 
 sp_uuid = Phylopic.imagesof("Procyon lotor"; items=1)
-silhouetteplot!(mp, -61, 59, sp_uuid; markersize=42, label="P. lotor", color=:black)
+silhouetteplot!(mp, -61.5, 59, sp_uuid; markersize=40, label="P. lotor", color=:black)
 sp_uuid = Phylopic.imagesof("Mephitis mephitis"; items=1)
-silhouetteplot!(mm, -61, 59, sp_uuid; markersize=42, label="M. mephitis", color=:black)
+silhouetteplot!(mm, -61.5, 59, sp_uuid; markersize=40, label="M. mephitis", color=:black)
 
 # Variable importance
 
-pstring = fill("WRONG VARIABLES", 3)#[descr[lnames[p]] for p in Sp.allvars[mIp]]
+pstring = [descr[lnames[p]] for p in Sp.allvars[mIp]]
 mstring = [descr[lnames[p]] for p in Sm.allvars[mIm]]
 vstring = _abbreviator.(vcat(pstring, mstring))
 
 Legend(
     f[1:2, 3],
-    [PolyElement(; color=_friendly_palette[i]) for i in 1:length(_friendly_palette)],
+    [PolyElement(; color=cpal[i]) for i in 1:length(cpal)],
     vstring;
     orientation=:horizontal,
     nbanks=6,
@@ -97,5 +98,5 @@ Legend(
 )
 
 # Show the figure
-f
+display(f)
 CairoMakie.save("figures/FINAL_shapmap.png", f)
