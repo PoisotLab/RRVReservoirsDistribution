@@ -7,7 +7,7 @@ include("S1_theme.jl")
 QC = getpolygon(PolygonData(GADM, Countries); country="CAN", level=1)["Québec"]
 
 # Palette functions
-include("S2_multivariate_palettes.jl")
+#include("S2_multivariate_palettes.jl")
 
 shapscale(S) = maximum(abs.(quantile(S, [0.05, 0.95]))) .* (-1, 1)
 
@@ -37,7 +37,7 @@ for scenario in scenarios, timeframe in timeframes
     f = Figure(; size = (800, 700))
     ax = Axis(f[1, 1], aspect=DataAspect())
     poly!(ax, QC, strokecolor=:black, strokewidth=1, color="#dfdfdf")
-    hm = heatmap!(ax, mask(NDRI, r_either), colormap=:balance, colorrange=shapscale(mask(NDRI, r_either)))
+    hm = heatmap!(ax, mask(NDRI, r_either), colormap=:diverging_bky_60_10_c30_n256, colorrange=shapscale(mask(NDRI, r_either)))
     hidedecorations!(ax)
     hidespines!(ax)
     tightlimits!(ax)
