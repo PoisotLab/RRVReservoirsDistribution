@@ -7,6 +7,12 @@ import CSV
 
 include("S1_theme.jl")
 
+mm_sdm = SDeMo.loadsdm("models/Mephitis_mephitis.json")
+mm_bar = mean(predict(mm_sdm; threshold=false))
+
+pl_sdm = SDeMo.loadsdm("models/Procyon_lotor.json")
+pl_bar = mean(predict(pl_sdm; threshold=false))
+
 QC = getpolygon(PolygonData(GADM, Countries), level=1, country="CAN")["Québec"]
 provider = RasterData(WorldClim2, BioClim)
 
@@ -59,7 +65,7 @@ cpal = vcat(_friendly_palette)
 f = Figure(; size=(500, 400))
 
 # Raccoon map
-mp = Axis(f[1,1:2], aspect=DataAspect())
+mp = Axis(f[1:2,1], aspect=DataAspect())
 pal = fill(colorant"#cccccc", 12)
 pal[mIp] .= cpal[1:3]
 heatmap!(mp, Sp.map, colormap=pal, colorrange=(1, 12))
@@ -67,7 +73,7 @@ lines!(mp, QC, color=:black)
 f
 
 # Skunk map
-mm = Axis(f[2,1:2], aspect=DataAspect())
+mm = Axis(f[3:4,1], aspect=DataAspect())
 pal = fill(colorant"#cccccc", 12)
 pal[mIm] .= vcat(cpal[1], cpal[4:5])
 heatmap!(mm, Sm.map, colormap=pal, colorrange=(1, 12))
@@ -82,25 +88,41 @@ for ax in [mm, mp]
 end
 
 sp_uuid = Phylopic.imagesof("Procyon lotor"; items=1)
-silhouetteplot!(mp, -62, 59, sp_uuid; markersize=40, label="P. lotor", color=:black)
+silhouetteplot!(mp, -61, 59, sp_uuid; markersize=40, label="P. lotor", color=:black)
 sp_uuid = Phylopic.imagesof("Mephitis mephitis"; items=1)
-silhouetteplot!(mm, -62, 59, sp_uuid; markersize=40, label="M. mephitis", color=:black)
+silhouetteplot!(mm, -61, 59, sp_uuid; markersize=40, label="M. mephitis", color=:black)
 
 # Variable importance
 pstring = [descr[lnames[p]] for p in truv]
 vstring = _abbreviator.(pstring)
 
 Legend(
-    f[1:2, 3],
+    f[5, 1:3],
     [PolyElement(; color=c) for c in cpal[1:length(truv)]],
     vstring;
     orientation=:horizontal,
-    nbanks=6,
+    nbanks=2,
     framevisible=false,
     tellheight=false,
-    tellwidth=true,
+    tellwidth=false,
     vertical=false
 )
+f
+
+# Show the Shapley variables for one variable
+vi = 5
+
+label = descr[lnames[vi]]
+
+pl_sh = Axis(f[1:2,2:3], xlabel=label)
+scatter!(pl_sh, features(pl_sdm, vi), pl_bar .+ explain(pl_sdm, vi; threshold=false), color=:grey80)
+lines!(pl_sh, partialresponse(pl_sdm, vi; threshold=false)..., color=:black, linewidth=2)
+current_figure()
+
+mm_sh = Axis(f[3:4,2:3], xlabel=label)
+scatter!(mm_sh, features(mm_sdm, vi), mm_bar .+ explain(mm_sdm, vi; threshold=false), color=:grey80)
+lines!(mm_sh, partialresponse(mm_sdm, vi; threshold=false)..., color=:black, linewidth=2)
+current_figure()
 
 # Show the figure
 display(f)
