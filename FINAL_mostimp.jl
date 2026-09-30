@@ -101,9 +101,9 @@ for ax in [mm, mp]
 end
 
 sp_uuid = last(Phylopic.imagesof("Procyon lotor"; items=2))
-silhouetteplot!(mp, -62, 59, sp_uuid; markersize=32, label="P. lotor", color=:black)
+silhouetteplot!(mp, -60, 59, sp_uuid; markersize=32, label="P. lotor", color=:black)
 sp_uuid = last(Phylopic.imagesof("Mephitis mephitis"; items=2))
-silhouetteplot!(mm, -62, 59, sp_uuid; markersize=32, label="M. mephitis", color=:black)
+silhouetteplot!(mm, -60, 59, sp_uuid; markersize=32, label="M. mephitis", color=:black)
 
 # Variable importance
 pstring = [descr[lnames[p]] for p in truv]
