@@ -58,7 +58,14 @@ truvm = Sm.variables[mIm]
 truv = unique(vcat(truvp, truvm))
 
 # Colors
-_friendly_palette = [colorant"#0072B2", colorant"#56B4E9", colorant"#009E73", colorant"#F5C710", colorant"#E69F00", colorant"#D55E00"]
+_friendly_palette = [
+  colorant"#E69F00",
+  colorant"#56B4E9",
+  colorant"#009e73",
+  colorant"#F0E442",
+  colorant"#CC79A7",
+  colorant"#000000"
+]
 cpal = vcat(_friendly_palette)
 
 # Get some figure action going
