@@ -63,8 +63,8 @@ _friendly_palette = [
   colorant"#56B4E9",
   colorant"#009e73",
   colorant"#F0E442",
-  colorant"#CC79A7",
-  colorant"#000000"
+  colorant"#000000",
+  colorant"#CC79A7"
 ]
 cpal = vcat(_friendly_palette)
 
@@ -101,9 +101,9 @@ for ax in [mm, mp]
 end
 
 sp_uuid = last(Phylopic.imagesof("Procyon lotor"; items=2))
-silhouetteplot!(mp, -61, 59, sp_uuid; markersize=38, label="P. lotor", color=:black)
+silhouetteplot!(mp, -62, 59, sp_uuid; markersize=32, label="P. lotor", color=:black)
 sp_uuid = last(Phylopic.imagesof("Mephitis mephitis"; items=2))
-silhouetteplot!(mm, -61, 59, sp_uuid; markersize=38, label="M. mephitis", color=:black)
+silhouetteplot!(mm, -62, 59, sp_uuid; markersize=32, label="M. mephitis", color=:black)
 
 # Variable importance
 pstring = [descr[lnames[p]] for p in truv]
